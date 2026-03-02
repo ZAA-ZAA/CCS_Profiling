@@ -1,0 +1,5 @@
+{
+  "name": "CCS Student and Faculty Information System",
+  "description": "A centralized web-based system for managing student and faculty records within the College of Computer Studies, featuring RBAC, audit trails, and UUID-based architecture.",
+  "requestFramePermissions": []
+}
