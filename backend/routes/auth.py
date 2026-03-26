@@ -81,12 +81,16 @@ def login():
         data = request.get_json()
         email = data.get('email', '').strip().lower()
         password = data.get('password', '')
+        tenant_id = (data.get('tenant_id') or data.get('tenantId') or '').strip() or None
         
         if not email or not password:
             return jsonify({'success': False, 'message': 'Email and password are required'}), 400
         
-        # Find user by email
-        user = User.query.filter_by(email=email).first()
+        # Find user by email (optionally tenant_id)
+        if tenant_id:
+            user = User.query.filter_by(email=email, tenant_id=tenant_id).first()
+        else:
+            user = User.query.filter_by(email=email).first()
         
         if not user:
             return jsonify({'success': False, 'message': 'Invalid email or password'}), 401

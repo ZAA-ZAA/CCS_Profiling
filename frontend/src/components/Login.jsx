@@ -8,6 +8,7 @@ const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000';
 export const Login = ({ onLogin, onSwitchToRegister }) => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [tenantId, setTenantId] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
 
@@ -22,7 +23,11 @@ export const Login = ({ onLogin, onSwitchToRegister }) => {
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ email, password }),
+        body: JSON.stringify({
+          email,
+          password,
+          tenant_id: tenantId || null,
+        }),
       });
 
       const data = await response.json();
@@ -90,6 +95,20 @@ export const Login = ({ onLogin, onSwitchToRegister }) => {
                   setError('');
                 }}
                 required
+                disabled={loading}
+              />
+            </div>
+
+            <div>
+              <input
+                type="text"
+                placeholder="Tenant ID (optional)"
+                className="w-full px-4 py-3 rounded-xl border border-gray-300 focus:ring-2 focus:ring-emerald-500 focus:border-transparent outline-none transition-all"
+                value={tenantId}
+                onChange={(e) => {
+                  setTenantId(e.target.value);
+                  setError('');
+                }}
                 disabled={loading}
               />
             </div>

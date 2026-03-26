@@ -1,10 +1,13 @@
 import React, { useCallback } from 'react';
 import { X, Save } from 'lucide-react';
 
-export const ScheduleForm = React.memo(({ onSubmit, onCancel, title, formData, setFormData }) => {
+export const ScheduleForm = React.memo(({ onSubmit, onCancel, title, formData, setFormData, instructors = [] }) => {
   const handleChange = useCallback((field, value) => {
     setFormData(prev => ({...prev, [field]: value}));
   }, [setFormData]);
+
+  const hasInstructorOptions = Array.isArray(instructors) && instructors.length > 0;
+  const selectedInstructorValue = formData.instructor || '';
 
   return (
     <div className="fixed inset-0 bg-black/30 backdrop-blur-sm flex items-center justify-center z-50 p-4" onClick={onCancel}>
@@ -46,15 +49,37 @@ export const ScheduleForm = React.memo(({ onSubmit, onCancel, title, formData, s
             </div>
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">Instructor *</label>
-              <input
-                type="text"
-                required
-                autoComplete="off"
-                className="w-full px-4 py-2 border border-gray-300 rounded-xl focus:ring-2 focus:ring-orange-500 outline-none transition-all"
-                value={formData.instructor || ''}
-                onChange={(e) => handleChange('instructor', e.target.value)}
-                placeholder="e.g., Prof. John Smith"
-              />
+              {hasInstructorOptions ? (
+                <select
+                  required
+                  autoComplete="off"
+                  className="w-full px-4 py-2 border border-gray-300 rounded-xl focus:ring-2 focus:ring-orange-500 outline-none transition-all"
+                  value={selectedInstructorValue}
+                  onChange={(e) => handleChange('instructor', e.target.value)}
+                >
+                  <option value="">Select Instructor</option>
+                  {instructors.map((ins) => (
+                    <option key={ins.value} value={ins.value}>
+                      {ins.label}
+                    </option>
+                  ))}
+                  {/* Keep current value visible if it doesn't exist in options (e.g., old saved data). */}
+                  {selectedInstructorValue &&
+                    !instructors.some((ins) => ins.value === selectedInstructorValue) && (
+                      <option value={selectedInstructorValue}>{selectedInstructorValue}</option>
+                    )}
+                </select>
+              ) : (
+                <input
+                  type="text"
+                  required
+                  autoComplete="off"
+                  className="w-full px-4 py-2 border border-gray-300 rounded-xl focus:ring-2 focus:ring-orange-500 outline-none transition-all"
+                  value={formData.instructor || ''}
+                  onChange={(e) => handleChange('instructor', e.target.value)}
+                  placeholder="e.g., Prof. John Smith"
+                />
+              )}
             </div>
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">Room *</label>

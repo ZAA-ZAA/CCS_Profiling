@@ -25,6 +25,8 @@ const timeSlots = [
 
 export const Scheduling = () => {
   const [schedules, setSchedules] = useState([]);
+  const [faculty, setFaculty] = useState([]);
+  const [facultyLoading, setFacultyLoading] = useState(false);
   const [viewMode, setViewMode] = useState('calendar');
   const [selectedSchedule, setSelectedSchedule] = useState(null);
   const [searchTerm, setSearchTerm] = useState('');
@@ -47,8 +49,38 @@ export const Scheduling = () => {
   });
 
   useEffect(() => {
+    fetchFaculty();
+  }, []);
+
+  useEffect(() => {
     fetchSchedules();
   }, [selectedCourse, selectedDay]);
+
+  const fetchFaculty = async () => {
+    try {
+      setFacultyLoading(true);
+      const response = await fetch(`${API_URL}/api/faculty`);
+      const data = await response.json();
+      if (data.success) {
+        setFaculty(data.data);
+      }
+    } catch (error) {
+      console.error('Error fetching faculty:', error);
+    } finally {
+      setFacultyLoading(false);
+    }
+  };
+
+  const instructorOptions = faculty.map((f) => {
+    const first = f.first_name || '';
+    const middle = f.middle_name || '';
+    const last = f.last_name || '';
+    const name = `${first} ${middle} ${last}`.replace(/\s+/g, ' ').trim();
+    const pos = f.position ? `${f.position} ` : '';
+    const emp = f.employee_number ? ` (${f.employee_number})` : '';
+    const label = `${pos}${name}${emp}`.trim();
+    return { value: label, label };
+  }).filter((x) => x.value);
 
   const fetchSchedules = async () => {
     try {
@@ -518,6 +550,7 @@ export const Scheduling = () => {
           onCancel={() => setShowAddModal(false)}
           formData={formData}
           setFormData={setFormData}
+          instructors={instructorOptions}
         />
       )}
 
@@ -532,6 +565,7 @@ export const Scheduling = () => {
           }}
           formData={formData}
           setFormData={setFormData}
+          instructors={instructorOptions}
         />
       )}
     </div>

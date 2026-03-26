@@ -44,6 +44,7 @@ class User(db.Model):
             'username': self.username,
             'email': self.email,
             'role': self.role,
+            'tenant_id': self.tenant_id,
             'created_at': self.created_at.isoformat() if self.created_at else None
         }
 
@@ -64,6 +65,13 @@ class Student(db.Model):
     tenant_id = db.Column(db.String(100), nullable=True, index=True)  # For multitenant support
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     
+    # Related student data (skills, activities, violations, affiliations, etc.)
+    skills = db.relationship('StudentSkill', backref='student', cascade='all, delete-orphan', lazy='selectin')
+    academic_history = db.relationship('StudentAcademicHistory', backref='student', cascade='all, delete-orphan', lazy='selectin')
+    activities = db.relationship('StudentNonAcademicActivity', backref='student', cascade='all, delete-orphan', lazy='selectin')
+    violations = db.relationship('StudentViolation', backref='student', cascade='all, delete-orphan', lazy='selectin')
+    affiliations = db.relationship('StudentAffiliation', backref='student', cascade='all, delete-orphan', lazy='selectin')
+    
     def to_dict(self):
         return {
             'id': self.id,
@@ -76,8 +84,112 @@ class Student(db.Model):
             'course': self.course,
             'year_level': self.year_level,
             'enrollment_status': self.enrollment_status,
+            'skills': [
+                {
+                    'id': s.id,
+                    'skill_name': s.skill_name,
+                    'level': s.level,
+                }
+                for s in (self.skills or [])
+            ],
+            'academic_history': [
+                {
+                    'id': h.id,
+                    'academic_year': h.academic_year,
+                    'course': h.course,
+                    'details': h.details,
+                }
+                for h in (self.academic_history or [])
+            ],
+            'activities': [
+                {
+                    'id': a.id,
+                    'activity_type': a.activity_type,
+                    'activity_name': a.activity_name,
+                    'details': a.details,
+                }
+                for a in (self.activities or [])
+            ],
+            'violations': [
+                {
+                    'id': v.id,
+                    'violation_name': v.violation_name,
+                    'severity': v.severity,
+                    'date': v.date.isoformat() if v.date else None,
+                    'details': v.details,
+                }
+                for v in (self.violations or [])
+            ],
+            'affiliations': [
+                {
+                    'id': af.id,
+                    'name': af.name,
+                    'category': af.category,
+                    'role': af.role,
+                }
+                for af in (self.affiliations or [])
+            ],
             'created_at': self.created_at.isoformat() if self.created_at else None
         }
+
+class StudentSkill(db.Model):
+    """Student skills model"""
+    __tablename__ = 'student_skills'
+    
+    id = db.Column(db.Integer, primary_key=True)
+    student_id = db.Column(db.Integer, db.ForeignKey('students.id', ondelete='CASCADE'), nullable=False, index=True)
+    skill_name = db.Column(db.String(120), nullable=False, index=True)
+    level = db.Column(db.String(50), nullable=True)  # e.g., Beginner/Intermediate/Advanced
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    
+
+class StudentAcademicHistory(db.Model):
+    """Student academic history model"""
+    __tablename__ = 'student_academic_history'
+    
+    id = db.Column(db.Integer, primary_key=True)
+    student_id = db.Column(db.Integer, db.ForeignKey('students.id', ondelete='CASCADE'), nullable=False, index=True)
+    academic_year = db.Column(db.String(50), nullable=True, index=True)
+    course = db.Column(db.String(100), nullable=True, index=True)
+    details = db.Column(db.Text, nullable=True)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    
+
+class StudentNonAcademicActivity(db.Model):
+    """Non-academic activities model"""
+    __tablename__ = 'student_non_academic_activities'
+    
+    id = db.Column(db.Integer, primary_key=True)
+    student_id = db.Column(db.Integer, db.ForeignKey('students.id', ondelete='CASCADE'), nullable=False, index=True)
+    activity_type = db.Column(db.String(100), nullable=True, index=True)  # e.g., Club, Volunteer, Sports
+    activity_name = db.Column(db.String(150), nullable=False, index=True)  # e.g., Debate Club, Basketball League
+    details = db.Column(db.Text, nullable=True)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    
+
+class StudentViolation(db.Model):
+    """Violations model"""
+    __tablename__ = 'student_violations'
+    
+    id = db.Column(db.Integer, primary_key=True)
+    student_id = db.Column(db.Integer, db.ForeignKey('students.id', ondelete='CASCADE'), nullable=False, index=True)
+    violation_name = db.Column(db.String(150), nullable=False, index=True)
+    severity = db.Column(db.String(50), nullable=True, index=True)  # e.g., Low/Medium/High
+    date = db.Column(db.Date, nullable=True, index=True)
+    details = db.Column(db.Text, nullable=True)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    
+
+class StudentAffiliation(db.Model):
+    """Affiliations model (orgs, sports, teams, etc.)"""
+    __tablename__ = 'student_affiliations'
+    
+    id = db.Column(db.Integer, primary_key=True)
+    student_id = db.Column(db.Integer, db.ForeignKey('students.id', ondelete='CASCADE'), nullable=False, index=True)
+    name = db.Column(db.String(150), nullable=False, index=True)  # Organization/Sports Team name
+    category = db.Column(db.String(100), nullable=True, index=True)  # e.g., Org, Sports, Team
+    role = db.Column(db.String(100), nullable=True)  # e.g., Member/Captain/Officer
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
 class Faculty(db.Model):
     """Faculty records model"""

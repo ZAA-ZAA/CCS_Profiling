@@ -47,6 +47,76 @@ CREATE TABLE IF NOT EXISTS students (
     INDEX idx_course (course)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
+-- Student Skills
+CREATE TABLE IF NOT EXISTS student_skills (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    student_id INT NOT NULL,
+    skill_name VARCHAR(120) NOT NULL,
+    level VARCHAR(50) NULL,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    INDEX idx_student_id (student_id),
+    INDEX idx_skill_name (skill_name),
+    FOREIGN KEY (student_id) REFERENCES students(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- Student Academic History
+CREATE TABLE IF NOT EXISTS student_academic_history (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    student_id INT NOT NULL,
+    academic_year VARCHAR(50) NULL,
+    course VARCHAR(100) NULL,
+    details TEXT NULL,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    INDEX idx_student_id (student_id),
+    INDEX idx_academic_year (academic_year),
+    INDEX idx_course (course),
+    FOREIGN KEY (student_id) REFERENCES students(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- Non-Academic Activities
+CREATE TABLE IF NOT EXISTS student_non_academic_activities (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    student_id INT NOT NULL,
+    activity_type VARCHAR(100) NULL,
+    activity_name VARCHAR(150) NOT NULL,
+    details TEXT NULL,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    INDEX idx_student_id (student_id),
+    INDEX idx_activity_name (activity_name),
+    INDEX idx_activity_type (activity_type),
+    FOREIGN KEY (student_id) REFERENCES students(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- Violations
+CREATE TABLE IF NOT EXISTS student_violations (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    student_id INT NOT NULL,
+    violation_name VARCHAR(150) NOT NULL,
+    severity VARCHAR(50) NULL,
+    date DATE NULL,
+    details TEXT NULL,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    INDEX idx_student_id (student_id),
+    INDEX idx_violation_name (violation_name),
+    INDEX idx_severity (severity),
+    INDEX idx_date (date),
+    FOREIGN KEY (student_id) REFERENCES students(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- Affiliations
+CREATE TABLE IF NOT EXISTS student_affiliations (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    student_id INT NOT NULL,
+    name VARCHAR(150) NOT NULL,
+    category VARCHAR(100) NULL,
+    role VARCHAR(100) NULL,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    INDEX idx_student_id (student_id),
+    INDEX idx_affiliation_name (name),
+    INDEX idx_affiliation_category (category),
+    FOREIGN KEY (student_id) REFERENCES students(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
 -- Faculty Table
 CREATE TABLE IF NOT EXISTS faculty (
     id INT AUTO_INCREMENT PRIMARY KEY,

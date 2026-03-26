@@ -251,7 +251,7 @@ export const OrgEventsReports = () => {
               className="bg-orange-600 hover:bg-orange-700 text-white px-4 py-2 rounded-xl text-sm font-bold flex items-center gap-2 transition-colors"
             >
               <Plus size={16} />
-              Add Event
+              Add Event Report
             </button>
           ) : (
             <button 
@@ -544,7 +544,7 @@ export const OrgEventsReports = () => {
         <div className="fixed inset-0 bg-black/30 backdrop-blur-sm flex items-center justify-center z-50 p-4" onClick={() => setShowAddModal(false)}>
           <div className="bg-white rounded-2xl shadow-xl max-w-2xl w-full max-h-[90vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
             <div className="p-6 border-b border-gray-200 flex items-center justify-between">
-              <h2 className="text-xl font-bold text-gray-900">Add New Event</h2>
+              <h2 className="text-xl font-bold text-gray-900">Add New Event Report</h2>
               <button type="button" onClick={() => setShowAddModal(false)} className="text-gray-400 hover:text-gray-600">
                 <X size={24} />
               </button>

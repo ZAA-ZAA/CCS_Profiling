@@ -12,6 +12,7 @@ export const StudentRecords = () => {
   const [showLogsModal, setShowLogsModal] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
   const [filterCourse, setFilterCourse] = useState('All Courses');
+  const [skillQuery, setSkillQuery] = useState('');
   const [loading, setLoading] = useState(true);
   const [formData, setFormData] = useState({
     student_id: '',
@@ -25,14 +26,33 @@ export const StudentRecords = () => {
     enrollment_status: 'Enrolled'
   });
 
+  // Add forms for comprehensive student data
+  const [newSkill, setNewSkill] = useState('');
+  const [newAcademicYear, setNewAcademicYear] = useState('');
+  const [newAcademicCourse, setNewAcademicCourse] = useState('');
+  const [newAcademicDetails, setNewAcademicDetails] = useState('');
+  const [newActivityType, setNewActivityType] = useState('');
+  const [newActivityName, setNewActivityName] = useState('');
+  const [newActivityDetails, setNewActivityDetails] = useState('');
+  const [newViolationName, setNewViolationName] = useState('');
+  const [newViolationSeverity, setNewViolationSeverity] = useState('Low');
+  const [newViolationDate, setNewViolationDate] = useState('');
+  const [newViolationDetails, setNewViolationDetails] = useState('');
+  const [newAffiliationName, setNewAffiliationName] = useState('');
+  const [newAffiliationCategory, setNewAffiliationCategory] = useState('Org');
+  const [newAffiliationRole, setNewAffiliationRole] = useState('');
+
   useEffect(() => {
-    fetchStudents();
+    fetchStudents({ skill: '' });
   }, []);
 
-  const fetchStudents = async () => {
+  const fetchStudents = async ({ skill } = { skill: '' }) => {
     try {
       setLoading(true);
-      const response = await fetch(`${API_URL}/api/students`);
+      const params = new URLSearchParams();
+      if (skill) params.append('skill', skill);
+      const qs = params.toString();
+      const response = await fetch(`${API_URL}/api/students${qs ? `?${qs}` : ''}`);
       const data = await response.json();
       if (data.success) {
         setStudents(data.data);
@@ -43,6 +63,26 @@ export const StudentRecords = () => {
       setLoading(false);
     }
   };
+
+  const fetchStudentDetails = useCallback(async (studentId) => {
+    try {
+      const response = await fetch(`${API_URL}/api/students/${studentId}`);
+      const data = await response.json();
+      if (data.success) {
+        setSelectedStudent(data.data);
+      }
+    } catch (error) {
+      console.error('Error fetching student details:', error);
+    }
+  }, []);
+
+  const handleSelectStudent = useCallback(async (student) => {
+    if (!student) return;
+    setSelectedStudent(student);
+    if (student.id) {
+      await fetchStudentDetails(student.id);
+    }
+  }, [fetchStudentDetails]);
 
   const handleAddStudent = async (e) => {
     e.preventDefault();
@@ -66,7 +106,7 @@ export const StudentRecords = () => {
           year_level: '1st Year',
           enrollment_status: 'Enrolled'
         });
-        fetchStudents();
+        fetchStudents({ skill: skillQuery });
         alert('Student added successfully!');
       } else {
         alert('Error: ' + data.message);
@@ -87,7 +127,7 @@ export const StudentRecords = () => {
       const data = await response.json();
       if (data.success) {
         setShowEditModal(false);
-        fetchStudents();
+        fetchStudents({ skill: skillQuery });
         setSelectedStudent(data.data);
         alert('Student updated successfully!');
       } else {
@@ -108,13 +148,217 @@ export const StudentRecords = () => {
       const data = await response.json();
       if (data.success) {
         setSelectedStudent(null);
-        fetchStudents();
+        fetchStudents({ skill: skillQuery });
         alert('Student deleted successfully!');
       } else {
         alert('Error: ' + data.message);
       }
     } catch (error) {
       alert('Error deleting student: ' + error.message);
+    }
+  };
+
+  const refreshSelectedStudent = useCallback(async () => {
+    if (!selectedStudent?.id) return;
+    await fetchStudentDetails(selectedStudent.id);
+  }, [fetchStudentDetails, selectedStudent]);
+
+  const handleAddSkill = async (e) => {
+    e.preventDefault();
+    if (!selectedStudent?.id) return;
+    const skillName = newSkill.trim();
+    if (!skillName) return;
+
+    try {
+      const response = await fetch(`${API_URL}/api/students/${selectedStudent.id}/skills`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ skill_name: skillName }),
+      });
+      const data = await response.json();
+      if (!data.success) throw new Error(data.message || 'Failed to add skill');
+
+      setNewSkill('');
+      await fetchStudentDetails(selectedStudent.id);
+      await fetchStudents({ skill: skillQuery });
+    } catch (error) {
+      alert('Error adding skill: ' + error.message);
+    }
+  };
+
+  const handleDeleteSkill = async (skillId) => {
+    if (!selectedStudent?.id) return;
+    try {
+      const response = await fetch(`${API_URL}/api/students/${selectedStudent.id}/skills/${skillId}`, {
+        method: 'DELETE',
+      });
+      const data = await response.json();
+      if (!data.success) throw new Error(data.message || 'Failed to delete skill');
+      await refreshSelectedStudent();
+      await fetchStudents({ skill: skillQuery });
+    } catch (error) {
+      alert('Error deleting skill: ' + error.message);
+    }
+  };
+
+  const handleAddAcademicHistory = async (e) => {
+    e.preventDefault();
+    if (!selectedStudent?.id) return;
+
+    try {
+      const response = await fetch(`${API_URL}/api/students/${selectedStudent.id}/academic-history`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          academic_year: newAcademicYear || null,
+          course: newAcademicCourse || null,
+          details: newAcademicDetails || null,
+        }),
+      });
+      const data = await response.json();
+      if (!data.success) throw new Error(data.message || 'Failed to add academic history');
+
+      setNewAcademicYear('');
+      setNewAcademicCourse('');
+      setNewAcademicDetails('');
+      await refreshSelectedStudent();
+    } catch (error) {
+      alert('Error adding academic history: ' + error.message);
+    }
+  };
+
+  const handleDeleteAcademicHistory = async (historyId) => {
+    if (!selectedStudent?.id) return;
+    try {
+      const response = await fetch(`${API_URL}/api/students/${selectedStudent.id}/academic-history/${historyId}`, {
+        method: 'DELETE',
+      });
+      const data = await response.json();
+      if (!data.success) throw new Error(data.message || 'Failed to delete academic history');
+      await refreshSelectedStudent();
+    } catch (error) {
+      alert('Error deleting academic history: ' + error.message);
+    }
+  };
+
+  const handleAddActivity = async (e) => {
+    e.preventDefault();
+    if (!selectedStudent?.id) return;
+
+    try {
+      const response = await fetch(`${API_URL}/api/students/${selectedStudent.id}/activities`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          activity_type: newActivityType || null,
+          activity_name: newActivityName.trim(),
+          details: newActivityDetails || null,
+        }),
+      });
+      const data = await response.json();
+      if (!data.success) throw new Error(data.message || 'Failed to add activity');
+
+      setNewActivityType('');
+      setNewActivityName('');
+      setNewActivityDetails('');
+      await refreshSelectedStudent();
+    } catch (error) {
+      alert('Error adding activity: ' + error.message);
+    }
+  };
+
+  const handleDeleteActivity = async (activityId) => {
+    if (!selectedStudent?.id) return;
+    try {
+      const response = await fetch(`${API_URL}/api/students/${selectedStudent.id}/activities/${activityId}`, {
+        method: 'DELETE',
+      });
+      const data = await response.json();
+      if (!data.success) throw new Error(data.message || 'Failed to delete activity');
+      await refreshSelectedStudent();
+    } catch (error) {
+      alert('Error deleting activity: ' + error.message);
+    }
+  };
+
+  const handleAddViolation = async (e) => {
+    e.preventDefault();
+    if (!selectedStudent?.id) return;
+    try {
+      const response = await fetch(`${API_URL}/api/students/${selectedStudent.id}/violations`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          violation_name: newViolationName.trim(),
+          severity: newViolationSeverity || null,
+          date: newViolationDate || null,
+          details: newViolationDetails || null,
+        }),
+      });
+      const data = await response.json();
+      if (!data.success) throw new Error(data.message || 'Failed to add violation');
+
+      setNewViolationName('');
+      setNewViolationSeverity('Low');
+      setNewViolationDate('');
+      setNewViolationDetails('');
+      await refreshSelectedStudent();
+    } catch (error) {
+      alert('Error adding violation: ' + error.message);
+    }
+  };
+
+  const handleDeleteViolation = async (violationId) => {
+    if (!selectedStudent?.id) return;
+    try {
+      const response = await fetch(`${API_URL}/api/students/${selectedStudent.id}/violations/${violationId}`, {
+        method: 'DELETE',
+      });
+      const data = await response.json();
+      if (!data.success) throw new Error(data.message || 'Failed to delete violation');
+      await refreshSelectedStudent();
+    } catch (error) {
+      alert('Error deleting violation: ' + error.message);
+    }
+  };
+
+  const handleAddAffiliation = async (e) => {
+    e.preventDefault();
+    if (!selectedStudent?.id) return;
+
+    try {
+      const response = await fetch(`${API_URL}/api/students/${selectedStudent.id}/affiliations`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name: newAffiliationName.trim(),
+          category: newAffiliationCategory || null,
+          role: newAffiliationRole || null,
+        }),
+      });
+      const data = await response.json();
+      if (!data.success) throw new Error(data.message || 'Failed to add affiliation');
+
+      setNewAffiliationName('');
+      setNewAffiliationCategory('Org');
+      setNewAffiliationRole('');
+      await refreshSelectedStudent();
+    } catch (error) {
+      alert('Error adding affiliation: ' + error.message);
+    }
+  };
+
+  const handleDeleteAffiliation = async (affiliationId) => {
+    if (!selectedStudent?.id) return;
+    try {
+      const response = await fetch(`${API_URL}/api/students/${selectedStudent.id}/affiliations/${affiliationId}`, {
+        method: 'DELETE',
+      });
+      const data = await response.json();
+      if (!data.success) throw new Error(data.message || 'Failed to delete affiliation');
+      await refreshSelectedStudent();
+    } catch (error) {
+      alert('Error deleting affiliation: ' + error.message);
     }
   };
 
@@ -171,6 +415,22 @@ export const StudentRecords = () => {
               <option>BSCS</option>
               <option>BSIS</option>
             </select>
+
+            {/* Skill filter (e.g., Basketball / Programming) */}
+            <select
+              className="bg-gray-50 border-none text-sm font-medium rounded-xl px-4 py-2 outline-none"
+              value={skillQuery}
+              onChange={(e) => {
+                const next = e.target.value;
+                setSkillQuery(next);
+                fetchStudents({ skill: next });
+              }}
+            >
+              <option value="">All Skills</option>
+              <option value="Basketball">Basketball</option>
+              <option value="Programming">Programming</option>
+            </select>
+
             <button 
               onClick={() => setShowAddModal(true)}
               className="bg-orange-600 hover:bg-orange-700 text-white px-4 py-2 rounded-xl text-sm font-bold flex items-center gap-2 transition-colors"
@@ -206,7 +466,7 @@ export const StudentRecords = () => {
                 {filteredStudents.map((student) => (
                   <tr 
                     key={student.id} 
-                    onClick={() => setSelectedStudent(student)}
+                    onClick={() => handleSelectStudent(student)}
                     className={`hover:bg-orange-50/30 cursor-pointer transition-colors ${selectedStudent?.id === student.id ? 'bg-orange-50/50' : ''}`}
                   >
                     <td className="px-6 py-4 text-sm font-medium text-gray-900">{student.last_name}</td>
@@ -275,6 +535,296 @@ export const StudentRecords = () => {
                 <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Enrollment Status</p>
                 <p className="text-sm text-gray-700">{selectedStudent.enrollment_status}</p>
               </div>
+            </div>
+
+            {/* Comprehensive student data (midterm requirements) */}
+            <div className="space-y-4 pt-2">
+              <details open>
+                <summary className="cursor-pointer text-sm font-bold text-gray-900">
+                  Skills
+                </summary>
+                <div className="mt-2 space-y-2">
+                  <div className="flex flex-wrap gap-2">
+                    {(selectedStudent.skills || []).length > 0 ? (
+                      selectedStudent.skills.map((s) => (
+                        <span
+                          key={s.id}
+                          className="inline-flex items-center gap-1 px-2 py-1 rounded-full bg-emerald-50 border border-emerald-100 text-emerald-700 text-xs"
+                        >
+                          {s.skill_name}
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.preventDefault();
+                              handleDeleteSkill(s.id);
+                            }}
+                            className="text-emerald-700 hover:text-emerald-900"
+                            title="Remove skill"
+                          >
+                            ×
+                          </button>
+                        </span>
+                      ))
+                    ) : (
+                      <p className="text-xs text-gray-500">No skills yet</p>
+                    )}
+                  </div>
+                  <form onSubmit={handleAddSkill} className="flex gap-2">
+                    <input
+                      type="text"
+                      placeholder="Add skill (e.g., Basketball)"
+                      className="flex-1 px-3 py-2 rounded-xl border border-gray-200 outline-none text-xs focus:ring-2 focus:ring-emerald-500/20"
+                      value={newSkill}
+                      onChange={(e) => setNewSkill(e.target.value)}
+                    />
+                    <button
+                      type="submit"
+                      className="px-3 py-2 rounded-xl text-xs font-bold bg-emerald-600 hover:bg-emerald-700 text-white"
+                      disabled={!newSkill.trim()}
+                    >
+                      Add
+                    </button>
+                  </form>
+                </div>
+              </details>
+
+              <details>
+                <summary className="cursor-pointer text-sm font-bold text-gray-900">
+                  Academic History
+                </summary>
+                <div className="mt-2 space-y-2">
+                  {(selectedStudent.academic_history || []).length > 0 ? (
+                    <div className="space-y-2">
+                      {selectedStudent.academic_history.map((h) => (
+                        <div key={h.id} className="flex items-center justify-between gap-2">
+                          <span className="text-xs text-gray-800 truncate">
+                            {h.course || 'Course'} {h.academic_year ? `(${h.academic_year})` : ''}
+                          </span>
+                          <button
+                            type="button"
+                            onClick={() => handleDeleteAcademicHistory(h.id)}
+                            className="text-red-600 hover:underline text-[11px]"
+                          >
+                            Remove
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <p className="text-xs text-gray-500">No academic history</p>
+                  )}
+                  <form onSubmit={handleAddAcademicHistory} className="space-y-2">
+                    <input
+                      type="text"
+                      placeholder="Academic Year (optional)"
+                      className="w-full px-3 py-2 rounded-xl border border-gray-200 outline-none text-xs focus:ring-2 focus:ring-emerald-500/20"
+                      value={newAcademicYear}
+                      onChange={(e) => setNewAcademicYear(e.target.value)}
+                    />
+                    <input
+                      type="text"
+                      placeholder="Course (optional)"
+                      className="w-full px-3 py-2 rounded-xl border border-gray-200 outline-none text-xs focus:ring-2 focus:ring-emerald-500/20"
+                      value={newAcademicCourse}
+                      onChange={(e) => setNewAcademicCourse(e.target.value)}
+                    />
+                    <input
+                      type="text"
+                      placeholder="Details (optional)"
+                      className="w-full px-3 py-2 rounded-xl border border-gray-200 outline-none text-xs focus:ring-2 focus:ring-emerald-500/20"
+                      value={newAcademicDetails}
+                      onChange={(e) => setNewAcademicDetails(e.target.value)}
+                    />
+                    <button
+                      type="submit"
+                      className="w-full px-3 py-2 rounded-xl text-xs font-bold bg-emerald-600 hover:bg-emerald-700 text-white"
+                    >
+                      Add Record
+                    </button>
+                  </form>
+                </div>
+              </details>
+
+              <details>
+                <summary className="cursor-pointer text-sm font-bold text-gray-900">
+                  Non-Academic Activities
+                </summary>
+                <div className="mt-2 space-y-2">
+                  {(selectedStudent.activities || []).length > 0 ? (
+                    <div className="space-y-2">
+                      {selectedStudent.activities.map((a) => (
+                        <div key={a.id} className="flex items-center justify-between gap-2">
+                          <span className="text-xs text-gray-800 truncate">
+                            {a.activity_name} {a.activity_type ? `(${a.activity_type})` : ''}
+                          </span>
+                          <button
+                            type="button"
+                            onClick={() => handleDeleteActivity(a.id)}
+                            className="text-red-600 hover:underline text-[11px]"
+                          >
+                            Remove
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <p className="text-xs text-gray-500">No activities</p>
+                  )}
+                  <form onSubmit={handleAddActivity} className="space-y-2">
+                    <input
+                      type="text"
+                      placeholder="Activity name *"
+                      className="w-full px-3 py-2 rounded-xl border border-gray-200 outline-none text-xs focus:ring-2 focus:ring-emerald-500/20"
+                      value={newActivityName}
+                      onChange={(e) => setNewActivityName(e.target.value)}
+                      required
+                    />
+                    <input
+                      type="text"
+                      placeholder="Activity type (optional)"
+                      className="w-full px-3 py-2 rounded-xl border border-gray-200 outline-none text-xs focus:ring-2 focus:ring-emerald-500/20"
+                      value={newActivityType}
+                      onChange={(e) => setNewActivityType(e.target.value)}
+                    />
+                    <input
+                      type="text"
+                      placeholder="Details (optional)"
+                      className="w-full px-3 py-2 rounded-xl border border-gray-200 outline-none text-xs focus:ring-2 focus:ring-emerald-500/20"
+                      value={newActivityDetails}
+                      onChange={(e) => setNewActivityDetails(e.target.value)}
+                    />
+                    <button
+                      type="submit"
+                      className="w-full px-3 py-2 rounded-xl text-xs font-bold bg-emerald-600 hover:bg-emerald-700 text-white"
+                    >
+                      Add Activity
+                    </button>
+                  </form>
+                </div>
+              </details>
+
+              <details>
+                <summary className="cursor-pointer text-sm font-bold text-gray-900">
+                  Violations
+                </summary>
+                <div className="mt-2 space-y-2">
+                  {(selectedStudent.violations || []).length > 0 ? (
+                    <div className="space-y-2">
+                      {selectedStudent.violations.map((v) => (
+                        <div key={v.id} className="flex items-center justify-between gap-2">
+                          <span className="text-xs text-gray-800 truncate">
+                            {v.violation_name}
+                            {v.severity ? ` (${v.severity})` : ''}
+                          </span>
+                          <button
+                            type="button"
+                            onClick={() => handleDeleteViolation(v.id)}
+                            className="text-red-600 hover:underline text-[11px]"
+                          >
+                            Remove
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <p className="text-xs text-gray-500">No violations</p>
+                  )}
+                  <form onSubmit={handleAddViolation} className="space-y-2">
+                    <input
+                      type="text"
+                      placeholder="Violation name *"
+                      className="w-full px-3 py-2 rounded-xl border border-gray-200 outline-none text-xs focus:ring-2 focus:ring-emerald-500/20"
+                      value={newViolationName}
+                      onChange={(e) => setNewViolationName(e.target.value)}
+                      required
+                    />
+                    <input
+                      type="text"
+                      placeholder="Severity (Low/Medium/High)"
+                      className="w-full px-3 py-2 rounded-xl border border-gray-200 outline-none text-xs focus:ring-2 focus:ring-emerald-500/20"
+                      value={newViolationSeverity}
+                      onChange={(e) => setNewViolationSeverity(e.target.value)}
+                    />
+                    <input
+                      type="date"
+                      className="w-full px-3 py-2 rounded-xl border border-gray-200 outline-none text-xs focus:ring-2 focus:ring-emerald-500/20"
+                      value={newViolationDate}
+                      onChange={(e) => setNewViolationDate(e.target.value)}
+                    />
+                    <input
+                      type="text"
+                      placeholder="Details (optional)"
+                      className="w-full px-3 py-2 rounded-xl border border-gray-200 outline-none text-xs focus:ring-2 focus:ring-emerald-500/20"
+                      value={newViolationDetails}
+                      onChange={(e) => setNewViolationDetails(e.target.value)}
+                    />
+                    <button
+                      type="submit"
+                      className="w-full px-3 py-2 rounded-xl text-xs font-bold bg-emerald-600 hover:bg-emerald-700 text-white"
+                    >
+                      Add Violation
+                    </button>
+                  </form>
+                </div>
+              </details>
+
+              <details>
+                <summary className="cursor-pointer text-sm font-bold text-gray-900">
+                  Affiliations (Orgs/Sports)
+                </summary>
+                <div className="mt-2 space-y-2">
+                  {(selectedStudent.affiliations || []).length > 0 ? (
+                    <div className="space-y-2">
+                      {selectedStudent.affiliations.map((af) => (
+                        <div key={af.id} className="flex items-center justify-between gap-2">
+                          <span className="text-xs text-gray-800 truncate">
+                            {af.name} {af.category ? `(${af.category})` : ''}
+                          </span>
+                          <button
+                            type="button"
+                            onClick={() => handleDeleteAffiliation(af.id)}
+                            className="text-red-600 hover:underline text-[11px]"
+                          >
+                            Remove
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <p className="text-xs text-gray-500">No affiliations</p>
+                  )}
+                  <form onSubmit={handleAddAffiliation} className="space-y-2">
+                    <input
+                      type="text"
+                      placeholder="Affiliation name *"
+                      className="w-full px-3 py-2 rounded-xl border border-gray-200 outline-none text-xs focus:ring-2 focus:ring-emerald-500/20"
+                      value={newAffiliationName}
+                      onChange={(e) => setNewAffiliationName(e.target.value)}
+                      required
+                    />
+                    <input
+                      type="text"
+                      placeholder="Category (Org/Sports/Team)"
+                      className="w-full px-3 py-2 rounded-xl border border-gray-200 outline-none text-xs focus:ring-2 focus:ring-emerald-500/20"
+                      value={newAffiliationCategory}
+                      onChange={(e) => setNewAffiliationCategory(e.target.value)}
+                    />
+                    <input
+                      type="text"
+                      placeholder="Role (optional)"
+                      className="w-full px-3 py-2 rounded-xl border border-gray-200 outline-none text-xs focus:ring-2 focus:ring-emerald-500/20"
+                      value={newAffiliationRole}
+                      onChange={(e) => setNewAffiliationRole(e.target.value)}
+                    />
+                    <button
+                      type="submit"
+                      className="w-full px-3 py-2 rounded-xl text-xs font-bold bg-emerald-600 hover:bg-emerald-700 text-white"
+                    >
+                      Add Affiliation
+                    </button>
+                  </form>
+                </div>
+              </details>
             </div>
           </div>
 
