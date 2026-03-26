@@ -1,5 +1,5 @@
-import React, { useState, useEffect, useMemo, useCallback } from 'react';
-import { Search, UserPlus, MoreVertical, Mail, Phone, GraduationCap, X, Trash2, FileText, Edit } from 'lucide-react';
+import React, { useState, useEffect, useCallback } from 'react';
+import { Search, UserPlus, MoreVertical, Mail, Phone, GraduationCap, Trash2, Edit } from 'lucide-react';
 import { StudentForm } from './StudentForm';
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000';
@@ -9,10 +9,12 @@ export const StudentRecords = () => {
   const [selectedStudent, setSelectedStudent] = useState(null);
   const [showAddModal, setShowAddModal] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
-  const [showLogsModal, setShowLogsModal] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
-  const [filterCourse, setFilterCourse] = useState('All Courses');
+  const [filterCourse, setFilterCourse] = useState('');
+  const [filterYearLevel, setFilterYearLevel] = useState('');
   const [skillQuery, setSkillQuery] = useState('');
+  const [activityQuery, setActivityQuery] = useState('');
+  const [affiliationQuery, setAffiliationQuery] = useState('');
   const [loading, setLoading] = useState(true);
   const [formData, setFormData] = useState({
     student_id: '',
@@ -43,14 +45,37 @@ export const StudentRecords = () => {
   const [newAffiliationRole, setNewAffiliationRole] = useState('');
 
   useEffect(() => {
-    fetchStudents({ skill: '' });
-  }, []);
+    const timer = window.setTimeout(() => {
+      fetchStudents({
+        search: searchTerm,
+        course: filterCourse,
+        year_level: filterYearLevel,
+        skill: skillQuery,
+        activity: activityQuery,
+        affiliation: affiliationQuery,
+      });
+    }, 250);
 
-  const fetchStudents = async ({ skill } = { skill: '' }) => {
+    return () => window.clearTimeout(timer);
+  }, [searchTerm, filterCourse, filterYearLevel, skillQuery, activityQuery, affiliationQuery]);
+
+  const fetchStudents = async ({
+    search = '',
+    course = '',
+    year_level = '',
+    skill = '',
+    activity = '',
+    affiliation = '',
+  } = {}) => {
     try {
       setLoading(true);
       const params = new URLSearchParams();
+      if (search) params.append('search', search);
+      if (course) params.append('course', course);
+      if (year_level) params.append('year_level', year_level);
       if (skill) params.append('skill', skill);
+      if (activity) params.append('activity', activity);
+      if (affiliation) params.append('affiliation', affiliation);
       const qs = params.toString();
       const response = await fetch(`${API_URL}/api/students${qs ? `?${qs}` : ''}`);
       const data = await response.json();
@@ -106,7 +131,14 @@ export const StudentRecords = () => {
           year_level: '1st Year',
           enrollment_status: 'Enrolled'
         });
-        fetchStudents({ skill: skillQuery });
+        fetchStudents({
+          search: searchTerm,
+          course: filterCourse,
+          year_level: filterYearLevel,
+          skill: skillQuery,
+          activity: activityQuery,
+          affiliation: affiliationQuery,
+        });
         alert('Student added successfully!');
       } else {
         alert('Error: ' + data.message);
@@ -127,7 +159,14 @@ export const StudentRecords = () => {
       const data = await response.json();
       if (data.success) {
         setShowEditModal(false);
-        fetchStudents({ skill: skillQuery });
+        fetchStudents({
+          search: searchTerm,
+          course: filterCourse,
+          year_level: filterYearLevel,
+          skill: skillQuery,
+          activity: activityQuery,
+          affiliation: affiliationQuery,
+        });
         setSelectedStudent(data.data);
         alert('Student updated successfully!');
       } else {
@@ -148,7 +187,14 @@ export const StudentRecords = () => {
       const data = await response.json();
       if (data.success) {
         setSelectedStudent(null);
-        fetchStudents({ skill: skillQuery });
+        fetchStudents({
+          search: searchTerm,
+          course: filterCourse,
+          year_level: filterYearLevel,
+          skill: skillQuery,
+          activity: activityQuery,
+          affiliation: affiliationQuery,
+        });
         alert('Student deleted successfully!');
       } else {
         alert('Error: ' + data.message);
@@ -162,6 +208,17 @@ export const StudentRecords = () => {
     if (!selectedStudent?.id) return;
     await fetchStudentDetails(selectedStudent.id);
   }, [fetchStudentDetails, selectedStudent]);
+
+  const refreshStudentList = useCallback(async () => {
+    await fetchStudents({
+      search: searchTerm,
+      course: filterCourse,
+      year_level: filterYearLevel,
+      skill: skillQuery,
+      activity: activityQuery,
+      affiliation: affiliationQuery,
+    });
+  }, [searchTerm, filterCourse, filterYearLevel, skillQuery, activityQuery, affiliationQuery]);
 
   const handleAddSkill = async (e) => {
     e.preventDefault();
@@ -180,7 +237,7 @@ export const StudentRecords = () => {
 
       setNewSkill('');
       await fetchStudentDetails(selectedStudent.id);
-      await fetchStudents({ skill: skillQuery });
+      await refreshStudentList();
     } catch (error) {
       alert('Error adding skill: ' + error.message);
     }
@@ -195,7 +252,7 @@ export const StudentRecords = () => {
       const data = await response.json();
       if (!data.success) throw new Error(data.message || 'Failed to delete skill');
       await refreshSelectedStudent();
-      await fetchStudents({ skill: skillQuery });
+      await refreshStudentList();
     } catch (error) {
       alert('Error deleting skill: ' + error.message);
     }
@@ -262,6 +319,7 @@ export const StudentRecords = () => {
       setNewActivityName('');
       setNewActivityDetails('');
       await refreshSelectedStudent();
+      await refreshStudentList();
     } catch (error) {
       alert('Error adding activity: ' + error.message);
     }
@@ -276,6 +334,7 @@ export const StudentRecords = () => {
       const data = await response.json();
       if (!data.success) throw new Error(data.message || 'Failed to delete activity');
       await refreshSelectedStudent();
+      await refreshStudentList();
     } catch (error) {
       alert('Error deleting activity: ' + error.message);
     }
@@ -343,6 +402,7 @@ export const StudentRecords = () => {
       setNewAffiliationCategory('Org');
       setNewAffiliationRole('');
       await refreshSelectedStudent();
+      await refreshStudentList();
     } catch (error) {
       alert('Error adding affiliation: ' + error.message);
     }
@@ -357,6 +417,7 @@ export const StudentRecords = () => {
       const data = await response.json();
       if (!data.success) throw new Error(data.message || 'Failed to delete affiliation');
       await refreshSelectedStudent();
+      await refreshStudentList();
     } catch (error) {
       alert('Error deleting affiliation: ' + error.message);
     }
@@ -378,65 +439,105 @@ export const StudentRecords = () => {
     setShowEditModal(true);
   };
 
-  const filteredStudents = students.filter(student => {
-    const matchesSearch = 
-      student.first_name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      student.last_name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      student.student_id?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      student.email?.toLowerCase().includes(searchTerm.toLowerCase());
-    
-    const matchesCourse = filterCourse === 'All Courses' || student.course === filterCourse;
-    
-    return matchesSearch && matchesCourse;
-  });
+  const filteredStudents = students;
 
   return (
     <div className="flex gap-8 h-full animate-in fade-in slide-in-from-bottom-4 duration-500">
       <div className="flex-1 bg-white rounded-3xl border border-gray-100 shadow-sm overflow-hidden flex flex-col">
-        <div className="p-6 border-b border-gray-50 flex items-center justify-between">
-          <div className="relative flex-1 max-w-md">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
-            <input 
-              type="text" 
-              placeholder="Search students..." 
-              className="w-full pl-10 pr-4 py-2 bg-gray-50 border-none rounded-xl text-sm outline-none focus:ring-2 focus:ring-orange-500/20 transition-all"
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-            />
-          </div>
-          <div className="flex items-center gap-3">
-            <select 
-              className="bg-gray-50 border-none text-sm font-medium rounded-xl px-4 py-2 outline-none"
-              value={filterCourse}
-              onChange={(e) => setFilterCourse(e.target.value)}
-            >
-              <option>All Courses</option>
-              <option>BSIT</option>
-              <option>BSCS</option>
-              <option>BSIS</option>
-            </select>
-
-            {/* Skill filter (e.g., Basketball / Programming) */}
-            <select
-              className="bg-gray-50 border-none text-sm font-medium rounded-xl px-4 py-2 outline-none"
-              value={skillQuery}
-              onChange={(e) => {
-                const next = e.target.value;
-                setSkillQuery(next);
-                fetchStudents({ skill: next });
-              }}
-            >
-              <option value="">All Skills</option>
-              <option value="Basketball">Basketball</option>
-              <option value="Programming">Programming</option>
-            </select>
-
+        <div className="p-6 border-b border-gray-50 space-y-4">
+          <div className="flex items-start justify-between gap-4">
+            <div>
+              <h3 className="text-lg font-bold text-gray-900">Student Profiles</h3>
+              <p className="text-xs text-gray-500">Core module with query and filtering support.</p>
+            </div>
             <button 
               onClick={() => setShowAddModal(true)}
               className="bg-orange-600 hover:bg-orange-700 text-white px-4 py-2 rounded-xl text-sm font-bold flex items-center gap-2 transition-colors"
             >
               <UserPlus size={18} />
               Add Student
+            </button>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
+            <div className="relative md:col-span-2 xl:col-span-1">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
+              <input 
+                type="text" 
+                placeholder="Search name, student ID, or email..." 
+                className="w-full pl-10 pr-4 py-2 bg-gray-50 border border-gray-200 rounded-xl text-sm outline-none focus:ring-2 focus:ring-orange-500/20 transition-all"
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+              />
+            </div>
+            <select 
+              className="bg-gray-50 border border-gray-200 text-sm font-medium rounded-xl px-4 py-2 outline-none"
+              value={filterCourse}
+              onChange={(e) => setFilterCourse(e.target.value)}
+            >
+              <option value="">All Courses</option>
+              <option value="BSIT">BSIT</option>
+              <option value="BSCS">BSCS</option>
+              <option value="BSIS">BSIS</option>
+            </select>
+            <select 
+              className="bg-gray-50 border border-gray-200 text-sm font-medium rounded-xl px-4 py-2 outline-none"
+              value={filterYearLevel}
+              onChange={(e) => setFilterYearLevel(e.target.value)}
+            >
+              <option value="">All Year Levels</option>
+              <option value="1st Year">1st Year</option>
+              <option value="2nd Year">2nd Year</option>
+              <option value="3rd Year">3rd Year</option>
+              <option value="4th Year">4th Year</option>
+            </select>
+            <input
+              type="text"
+              placeholder="Filter by skill"
+              className="bg-gray-50 border border-gray-200 text-sm rounded-xl px-4 py-2 outline-none"
+              value={skillQuery}
+              onChange={(e) => setSkillQuery(e.target.value)}
+            />
+            <input
+              type="text"
+              placeholder="Filter by activity"
+              className="bg-gray-50 border border-gray-200 text-sm rounded-xl px-4 py-2 outline-none"
+              value={activityQuery}
+              onChange={(e) => setActivityQuery(e.target.value)}
+            />
+            <input
+              type="text"
+              placeholder="Filter by affiliation"
+              className="bg-gray-50 border border-gray-200 text-sm rounded-xl px-4 py-2 outline-none"
+              value={affiliationQuery}
+              onChange={(e) => setAffiliationQuery(e.target.value)}
+            />
+          </div>
+
+          <div className="flex flex-wrap items-center gap-2">
+            {['Basketball', 'Programming'].map((query) => (
+              <button
+                key={query}
+                type="button"
+                onClick={() => setSkillQuery(query)}
+                className="rounded-full bg-orange-50 px-3 py-1 text-xs font-bold text-orange-700 border border-orange-200"
+              >
+                Query: {query}
+              </button>
+            ))}
+            <button
+              type="button"
+              onClick={() => {
+                setSearchTerm('');
+                setFilterCourse('');
+                setFilterYearLevel('');
+                setSkillQuery('');
+                setActivityQuery('');
+                setAffiliationQuery('');
+              }}
+              className="rounded-full bg-white px-3 py-1 text-xs font-bold text-gray-600 border border-gray-200"
+            >
+              Reset Filters
             </button>
           </div>
         </div>
@@ -561,7 +662,7 @@ export const StudentRecords = () => {
                             className="text-emerald-700 hover:text-emerald-900"
                             title="Remove skill"
                           >
-                            ×
+                            x
                           </button>
                         </span>
                       ))
@@ -837,13 +938,6 @@ export const StudentRecords = () => {
               Edit Profile
             </button>
             <button 
-              onClick={() => setShowLogsModal(true)}
-              className="w-full px-4 py-2 rounded-xl text-sm font-bold bg-gray-900 text-white hover:bg-gray-800 transition-colors flex items-center justify-center gap-2"
-            >
-              <FileText size={16} />
-              View Logs
-            </button>
-            <button 
               onClick={handleDeleteStudent}
               className="w-full px-4 py-2 rounded-xl text-sm font-bold bg-red-600 text-white hover:bg-red-700 transition-colors flex items-center justify-center gap-2"
             >
@@ -857,7 +951,7 @@ export const StudentRecords = () => {
       {showAddModal && (
         <StudentForm 
           key="add"
-          title="Add New Student"
+          title="Add Student Profile"
           onSubmit={handleAddStudent}
           onCancel={() => setShowAddModal(false)}
           formData={formData}
@@ -868,40 +962,12 @@ export const StudentRecords = () => {
       {showEditModal && (
         <StudentForm 
           key="edit"
-          title="Edit Student"
+          title="Edit Student Profile"
           onSubmit={handleEditStudent}
           onCancel={() => setShowEditModal(false)}
           formData={formData}
           setFormData={setFormData}
         />
-      )}
-
-      {showLogsModal && selectedStudent && (
-        <div className="fixed inset-0 bg-black/30 backdrop-blur-sm flex items-center justify-center z-50 p-4" onClick={() => setShowLogsModal(false)}>
-          <div className="bg-white rounded-2xl shadow-xl max-w-2xl w-full max-h-[90vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
-            <div className="p-6 border-b border-gray-200 flex items-center justify-between">
-              <h2 className="text-xl font-bold text-gray-900">Activity Logs - {selectedStudent.first_name} {selectedStudent.last_name}</h2>
-              <button onClick={() => setShowLogsModal(false)} className="text-gray-400 hover:text-gray-600">
-                <X size={24} />
-              </button>
-            </div>
-            <div className="p-6">
-              <div className="space-y-4">
-                <div className="p-4 bg-gray-50 rounded-xl">
-                  <p className="text-sm font-medium text-gray-900">Record Created</p>
-                  <p className="text-xs text-gray-500">{new Date(selectedStudent.created_at).toLocaleString()}</p>
-                </div>
-                <div className="p-4 bg-gray-50 rounded-xl">
-                  <p className="text-sm font-medium text-gray-900">Last Updated</p>
-                  <p className="text-xs text-gray-500">{new Date(selectedStudent.created_at).toLocaleString()}</p>
-                </div>
-                <div className="text-center text-gray-400 text-sm py-8">
-                  No additional activity logs available
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
       )}
     </div>
   );

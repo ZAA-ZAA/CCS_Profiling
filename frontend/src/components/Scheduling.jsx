@@ -7,9 +7,8 @@ import {
   Search, 
   Plus,
   Edit,
+  Eye,
   Trash2,
-  ChevronLeft,
-  ChevronRight,
   X
 } from 'lucide-react';
 import { cn } from '../constants';
@@ -206,7 +205,7 @@ export const Scheduling = () => {
     return filteredSchedules.find(s => {
       if (s.day !== day) return false;
       const startTime = s.start_time || '';
-      return startTime.includes(timeSlot.split(':')[0]);
+      return startTime === timeSlot;
     });
   };
 
@@ -300,15 +299,7 @@ export const Scheduling = () => {
           <div className="p-6 border-b border-gray-100">
             <div className="flex items-center justify-between mb-4">
               <h3 className="text-lg font-bold text-gray-900">Weekly Schedule</h3>
-              <div className="flex items-center gap-2">
-                <button className="p-2 hover:bg-gray-100 rounded-lg text-gray-400">
-                  <ChevronLeft size={18} />
-                </button>
-                <span className="text-sm font-bold text-gray-700">Current Week</span>
-                <button className="p-2 hover:bg-gray-100 rounded-lg text-gray-400">
-                  <ChevronRight size={18} />
-                </button>
-              </div>
+              <span className="text-sm font-bold text-gray-500">Current weekly grid</span>
             </div>
           </div>
           
@@ -441,9 +432,10 @@ export const Scheduling = () => {
                         e.stopPropagation();
                         setSelectedSchedule(schedule);
                       }}
-                      className="p-2 hover:bg-red-50 rounded-lg text-red-400"
+                      className="p-2 hover:bg-gray-100 rounded-lg text-gray-400"
+                      title="View details"
                     >
-                      <Trash2 size={16} />
+                      <Eye size={16} />
                     </button>
                   </div>
                 </div>

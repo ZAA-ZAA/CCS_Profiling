@@ -7,6 +7,7 @@ from datetime import datetime
 parent_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 if parent_dir not in sys.path:
     sys.path.insert(0, parent_dir)
+from audit import log_audit_event
 from models import db, User
 
 auth_bp = Blueprint('auth', __name__, url_prefix='/api/auth')
@@ -63,6 +64,17 @@ def register():
         
         db.session.add(user)
         db.session.commit()
+        log_audit_event(
+            'CREATE',
+            'USER',
+            entity_id=user.id,
+            entity_name=user.username,
+            details={'email': user.email, 'role': user.role},
+            req=request,
+            user_id=user.id,
+            username=user.username,
+            tenant_id=user.tenant_id,
+        )
         
         return jsonify({
             'success': True,
@@ -101,6 +113,18 @@ def login():
         # Check password
         if not user.check_password(password):
             return jsonify({'success': False, 'message': 'Invalid email or password'}), 401
+
+        log_audit_event(
+            'LOGIN',
+            'USER',
+            entity_id=user.id,
+            entity_name=user.username,
+            details={'email': user.email},
+            req=request,
+            user_id=user.id,
+            username=user.username,
+            tenant_id=user.tenant_id,
+        )
         
         return jsonify({
             'success': True,
@@ -114,6 +138,16 @@ def login():
 @auth_bp.route('/logout', methods=['POST'])
 def logout():
     """User logout endpoint"""
+    payload = request.get_json(silent=True) or {}
+    log_audit_event(
+        'LOGOUT',
+        'USER',
+        entity_name=payload.get('username') or 'User Session',
+        details={'email': payload.get('email')},
+        req=request,
+        username=payload.get('username') or request.headers.get('X-Actor-Name') or 'User',
+        tenant_id=payload.get('tenant_id'),
+    )
     return jsonify({
         'success': True,
         'message': 'Logout successful'

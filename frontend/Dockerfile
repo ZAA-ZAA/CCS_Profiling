@@ -13,10 +13,6 @@ RUN npm ci
 COPY . .
 
 # Build the application
-# Note: GEMINI_API_KEY should be provided as build arg if needed
-ARG GEMINI_API_KEY
-ENV GEMINI_API_KEY=$GEMINI_API_KEY
-
 RUN npm run build
 
 # Stage 2: Serve the application with nginx

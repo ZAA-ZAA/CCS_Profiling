@@ -1,6 +1,6 @@
 from flask import Blueprint, request, jsonify
+from audit import log_audit_event
 from models import db, Syllabus
-from datetime import datetime
 import json
 
 syllabus_bp = Blueprint('syllabus', __name__, url_prefix='/api/syllabus')
@@ -38,7 +38,7 @@ def get_syllabi():
 def create_syllabus():
     """Create a new syllabus"""
     try:
-        data = request.get_json()
+        data = request.get_json() or {}
         
         # Validate required fields
         required_fields = ['course', 'subject', 'code', 'instructor', 'semester', 'academic_year', 'units', 'hours']
@@ -68,6 +68,15 @@ def create_syllabus():
         
         db.session.add(syllabus)
         db.session.commit()
+
+        log_audit_event(
+            action='CREATE',
+            entity_type='SYLLABUS',
+            entity_id=syllabus.id,
+            entity_name=f'{syllabus.code} - {syllabus.subject}',
+            details={'course': syllabus.course, 'semester': syllabus.semester},
+            tenant_id=syllabus.tenant_id,
+        )
         
         return jsonify({
             'success': True,
@@ -113,7 +122,7 @@ def update_syllabus(syllabus_id):
                 'message': 'Syllabus not found'
             }), 404
         
-        data = request.get_json()
+        data = request.get_json() or {}
         
         if 'course' in data:
             syllabus.course = data['course']
@@ -143,6 +152,15 @@ def update_syllabus(syllabus_id):
             syllabus.status = data['status']
         
         db.session.commit()
+
+        log_audit_event(
+            action='UPDATE',
+            entity_type='SYLLABUS',
+            entity_id=syllabus.id,
+            entity_name=f'{syllabus.code} - {syllabus.subject}',
+            details={'course': syllabus.course, 'semester': syllabus.semester},
+            tenant_id=syllabus.tenant_id,
+        )
         
         return jsonify({
             'success': True,
@@ -167,8 +185,18 @@ def delete_syllabus(syllabus_id):
                 'message': 'Syllabus not found'
             }), 404
         
+        tenant_id = syllabus.tenant_id
+        name = f'{syllabus.code} - {syllabus.subject}'
         db.session.delete(syllabus)
         db.session.commit()
+
+        log_audit_event(
+            action='DELETE',
+            entity_type='SYLLABUS',
+            entity_id=syllabus_id,
+            entity_name=name,
+            tenant_id=tenant_id,
+        )
         
         return jsonify({
             'success': True,

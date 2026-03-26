@@ -1,6 +1,6 @@
 from flask import Blueprint, request, jsonify
+from audit import log_audit_event
 from models import db, Curriculum
-from datetime import datetime
 import json
 
 curriculum_bp = Blueprint('curriculum', __name__, url_prefix='/api/curriculum')
@@ -38,7 +38,7 @@ def get_curricula():
 def create_curriculum():
     """Create a new curriculum"""
     try:
-        data = request.get_json()
+        data = request.get_json() or {}
         
         # Validate required fields
         required_fields = ['course', 'program', 'year', 'total_units', 'semesters']
@@ -61,6 +61,15 @@ def create_curriculum():
         
         db.session.add(curriculum)
         db.session.commit()
+
+        log_audit_event(
+            action='CREATE',
+            entity_type='CURRICULUM',
+            entity_id=curriculum.id,
+            entity_name=curriculum.program,
+            details={'course': curriculum.course, 'year': curriculum.year},
+            tenant_id=curriculum.tenant_id,
+        )
         
         return jsonify({
             'success': True,
@@ -106,7 +115,7 @@ def update_curriculum(curriculum_id):
                 'message': 'Curriculum not found'
             }), 404
         
-        data = request.get_json()
+        data = request.get_json() or {}
         
         if 'course' in data:
             curriculum.course = data['course']
@@ -122,6 +131,15 @@ def update_curriculum(curriculum_id):
             curriculum.status = data['status']
         
         db.session.commit()
+
+        log_audit_event(
+            action='UPDATE',
+            entity_type='CURRICULUM',
+            entity_id=curriculum.id,
+            entity_name=curriculum.program,
+            details={'course': curriculum.course, 'year': curriculum.year},
+            tenant_id=curriculum.tenant_id,
+        )
         
         return jsonify({
             'success': True,
@@ -146,8 +164,18 @@ def delete_curriculum(curriculum_id):
                 'message': 'Curriculum not found'
             }), 404
         
+        tenant_id = curriculum.tenant_id
+        name = curriculum.program
         db.session.delete(curriculum)
         db.session.commit()
+
+        log_audit_event(
+            action='DELETE',
+            entity_type='CURRICULUM',
+            entity_id=curriculum_id,
+            entity_name=name,
+            tenant_id=tenant_id,
+        )
         
         return jsonify({
             'success': True,

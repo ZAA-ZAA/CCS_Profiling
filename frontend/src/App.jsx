@@ -10,10 +10,21 @@ import { CollegeResearch } from './components/CollegeResearch';
 import { Instructions } from './components/Instructions';
 import { OrgEventsReports } from './components/OrgEventsReports';
 import { AuditLogs } from './components/AuditLogs';
-import { Bell, Search } from 'lucide-react';
-import { UserRole } from './constants';
+import { ShieldCheck } from 'lucide-react';
+import { apiRequest } from './lib/api';
 
 export default function App() {
+  const pageTitles = {
+    dashboard: 'Dashboard',
+    students: 'Student Profile',
+    faculty: 'Faculty Profile',
+    scheduling: 'Scheduling',
+    research: 'College Research',
+    instructions: 'Instructions',
+    reports: 'Events',
+    audit: 'Audit Logs',
+  };
+
   // Load user from localStorage on mount
   const [user, setUser] = useState(() => {
     const savedUser = localStorage.getItem('user');
@@ -81,43 +92,49 @@ export default function App() {
   };
 
   return (
-    <div className="flex h-screen bg-gray-50 font-sans text-gray-900">
+    <div className="flex h-screen overflow-hidden bg-gray-50 font-sans text-gray-900">
       <Sidebar 
         role={user.role || 'FACULTY'} 
         activeTab={activeTab} 
         setActiveTab={setActiveTab} 
-        onLogout={() => {
-          setUser(null);
-          localStorage.removeItem('user');
-          localStorage.removeItem('activeTab');
+        onLogout={async () => {
+          try {
+            await apiRequest('/api/auth/logout', {
+              method: 'POST',
+              body: {
+                username: user?.username,
+                email: user?.email,
+                tenant_id: user?.tenant_id,
+              }
+            });
+          } catch (error) {
+            console.error('Logout request failed:', error);
+          } finally {
+            setUser(null);
+            localStorage.removeItem('user');
+            localStorage.removeItem('activeTab');
+          }
         }}
       />
       
-      <main className="flex-1 flex flex-col overflow-hidden">
+      <main className="flex min-w-0 flex-1 flex-col overflow-hidden">
         {/* Header */}
         <header className="h-20 bg-white border-b border-gray-100 flex items-center justify-between px-8 sticky top-0 z-10">
-          <h2 className="text-xl font-bold text-gray-900 capitalize">
-            {activeTab.replace('-', ' ')}
+          <h2 className="text-xl font-bold text-gray-900">
+            {pageTitles[activeTab] || activeTab.replace('-', ' ')}
           </h2>
           
-          <div className="flex items-center gap-6">
-            <div className="relative hidden md:block">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
-              <input 
-                type="text" 
-                placeholder="Quick search..." 
-                className="pl-10 pr-4 py-2 bg-gray-50 border-none rounded-xl text-sm outline-none w-64 focus:ring-2 focus:ring-orange-500/20 transition-all"
-              />
+          <div className="flex items-center gap-3 rounded-2xl bg-orange-50 px-4 py-2 text-sm">
+            <ShieldCheck className="text-orange-600" size={18} />
+            <div className="text-right leading-tight">
+              <p className="font-semibold text-gray-900">{user.username}</p>
+              <p className="text-xs text-gray-500">{user.role}</p>
             </div>
-            <button className="relative p-2 text-gray-400 hover:bg-gray-50 rounded-xl transition-colors">
-              <Bell size={20} />
-              <span className="absolute top-2 right-2 w-2 h-2 bg-orange-600 rounded-full border-2 border-white"></span>
-            </button>
           </div>
         </header>
 
         {/* Content Area */}
-        <div className="flex-1 overflow-auto p-8">
+        <div className="min-w-0 flex-1 overflow-auto p-8">
           {renderContent()}
         </div>
       </main>

@@ -1,18 +1,13 @@
 import React, { useState, useEffect } from 'react';
 import { 
-  BookOpen, 
   Search, 
-  Filter,
   Download,
   Eye,
-  Calendar,
   User,
   FileText,
   TrendingUp,
   Award,
   Plus,
-  Tag,
-  Clock,
   X,
   Save,
   Edit,
@@ -33,105 +28,6 @@ const researchCategories = [
   'Software Engineering'
 ];
 
-const mockResearch = [
-  {
-    id: '1',
-    title: 'Machine Learning Applications in Student Performance Prediction',
-    authors: ['Dr. John Smith', 'Prof. Maria Garcia', 'Dr. Robert Lee'],
-    category: 'Artificial Intelligence',
-    status: 'Published',
-    date: '2024-03-15',
-    year: '2024',
-    abstract: 'This study explores the use of machine learning algorithms to predict student academic performance based on various factors including attendance, assignment completion, and previous grades.',
-    keywords: ['Machine Learning', 'Education', 'Predictive Analytics', 'Student Performance'],
-    citations: 45,
-    views: 320,
-    downloads: 180,
-    journal: 'International Journal of Educational Technology',
-    doi: '10.1234/ijet.2024.001'
-  },
-  {
-    id: '2',
-    title: 'Secure Web Application Development: Best Practices and Frameworks',
-    authors: ['Prof. Sarah Johnson', 'Dr. Michael Chen'],
-    category: 'Web Development',
-    status: 'Published',
-    date: '2024-02-20',
-    year: '2024',
-    abstract: 'A comprehensive analysis of modern web security frameworks and best practices for developing secure web applications in the current threat landscape.',
-    keywords: ['Web Security', 'Frameworks', 'Best Practices', 'Cybersecurity'],
-    citations: 32,
-    views: 280,
-    downloads: 150,
-    journal: 'Journal of Web Technologies',
-    doi: '10.1234/jwt.2024.002'
-  },
-  {
-    id: '3',
-    title: 'Mobile App Performance Optimization for Low-End Devices',
-    authors: ['Dr. Emily Davis', 'Prof. James Wilson'],
-    category: 'Mobile Development',
-    status: 'Under Review',
-    date: '2024-04-10',
-    year: '2024',
-    abstract: 'This research focuses on optimization techniques for mobile applications to ensure optimal performance on low-end devices with limited resources.',
-    keywords: ['Mobile Development', 'Performance', 'Optimization', 'Low-End Devices'],
-    citations: 0,
-    views: 95,
-    downloads: 45,
-    journal: 'Mobile Computing Review',
-    doi: 'Pending'
-  },
-  {
-    id: '4',
-    title: 'Big Data Analytics in Educational Institutions',
-    authors: ['Dr. Patricia Brown', 'Prof. David Martinez'],
-    category: 'Data Science',
-    status: 'Published',
-    date: '2023-11-05',
-    year: '2023',
-    abstract: 'An exploration of how big data analytics can be leveraged in educational institutions to improve decision-making and student outcomes.',
-    keywords: ['Big Data', 'Analytics', 'Education', 'Data Mining'],
-    citations: 67,
-    views: 450,
-    downloads: 220,
-    journal: 'Data Science in Education',
-    doi: '10.1234/dse.2023.003'
-  },
-  {
-    id: '5',
-    title: 'Cloud-Based Learning Management System Architecture',
-    authors: ['Prof. Lisa Anderson', 'Dr. Mark Thompson'],
-    category: 'Cloud Computing',
-    status: 'Published',
-    date: '2023-09-18',
-    year: '2023',
-    abstract: 'Design and implementation of a scalable cloud-based learning management system using modern cloud technologies.',
-    keywords: ['Cloud Computing', 'LMS', 'Architecture', 'Scalability'],
-    citations: 28,
-    views: 310,
-    downloads: 175,
-    journal: 'Cloud Computing Journal',
-    doi: '10.1234/ccj.2023.004'
-  },
-  {
-    id: '6',
-    title: 'Cybersecurity Awareness Training Effectiveness Study',
-    authors: ['Dr. Jennifer White', 'Prof. Kevin Harris'],
-    category: 'Cybersecurity',
-    status: 'Published',
-    date: '2024-01-12',
-    year: '2024',
-    abstract: 'A study evaluating the effectiveness of cybersecurity awareness training programs in educational institutions.',
-    keywords: ['Cybersecurity', 'Training', 'Awareness', 'Education'],
-    citations: 19,
-    views: 195,
-    downloads: 110,
-    journal: 'Cybersecurity Education Review',
-    doi: '10.1234/cer.2024.005'
-  },
-];
-
 const getStatusColor = (status) => {
   switch (status) {
     case 'Published':
@@ -142,9 +38,27 @@ const getStatusColor = (status) => {
       return 'bg-gray-50 text-gray-600';
     case 'Rejected':
       return 'bg-red-50 text-red-600';
+    case 'Ongoing':
+      return 'bg-blue-50 text-blue-600';
     default:
       return 'bg-gray-50 text-gray-600';
   }
+};
+
+const emptyResearchForm = {
+  title: '',
+  description: '',
+  authors: '',
+  category: 'Artificial Intelligence',
+  status: 'Ongoing',
+  keywords: '',
+  citations: 0,
+  views: 0,
+  downloads: 0,
+  journal: '',
+  doi: '',
+  date: '',
+  year: new Date().getFullYear().toString()
 };
 
 export const CollegeResearch = () => {
@@ -156,21 +70,7 @@ export const CollegeResearch = () => {
   const [viewMode, setViewMode] = useState('grid');
   const [showAddModal, setShowAddModal] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
-  const [formData, setFormData] = useState({
-    title: '',
-    description: '',
-    authors: '',
-    category: 'Artificial Intelligence',
-    status: 'ongoing',
-    keywords: '',
-    citations: 0,
-    views: 0,
-    downloads: 0,
-    journal: '',
-    doi: '',
-    date: '',
-    year: new Date().getFullYear().toString()
-  });
+  const [formData, setFormData] = useState(emptyResearchForm);
 
   useEffect(() => {
     fetchResearch();
@@ -194,6 +94,26 @@ export const CollegeResearch = () => {
     }
   };
 
+  const openEditModal = (item) => {
+    setSelectedResearch(item);
+    setFormData({
+      title: item.title || '',
+      description: item.description || '',
+      authors: (item.authors || []).join(', '),
+      category: item.category || 'Artificial Intelligence',
+      status: item.status || 'Ongoing',
+      keywords: (item.keywords || []).join(', '),
+      citations: item.citations || 0,
+      views: item.views || 0,
+      downloads: item.downloads || 0,
+      journal: item.journal || '',
+      doi: item.doi || '',
+      date: item.date || '',
+      year: item.year || new Date().getFullYear().toString()
+    });
+    setShowEditModal(true);
+  };
+
   const handleAddResearch = async (e) => {
     e.preventDefault();
     try {
@@ -211,21 +131,7 @@ export const CollegeResearch = () => {
       const data = await response.json();
       if (data.success) {
         setShowAddModal(false);
-        setFormData({
-          title: '',
-          description: '',
-          authors: '',
-          category: 'Artificial Intelligence',
-          status: 'ongoing',
-          keywords: '',
-          citations: 0,
-          views: 0,
-          downloads: 0,
-          journal: '',
-          doi: '',
-          date: '',
-          year: new Date().getFullYear().toString()
-        });
+        setFormData(emptyResearchForm);
         fetchResearch();
         alert('Research added successfully!');
       } else {
@@ -234,6 +140,49 @@ export const CollegeResearch = () => {
     } catch (error) {
       alert('Error adding research: ' + error.message);
     }
+  };
+
+  const handleEditResearch = async (e) => {
+    e.preventDefault();
+    if (!selectedResearch?.id) return;
+
+    try {
+      const dataToSend = {
+        ...formData,
+        authors: formData.authors.split(',').map((author) => author.trim()).filter(Boolean),
+        keywords: formData.keywords.split(',').map((keyword) => keyword.trim()).filter(Boolean)
+      };
+
+      const response = await fetch(`${API_URL}/api/research/${selectedResearch.id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(dataToSend)
+      });
+      const data = await response.json();
+      if (data.success) {
+        setShowEditModal(false);
+        setSelectedResearch(data.data);
+        fetchResearch();
+        alert('Research updated successfully!');
+      } else {
+        alert('Error: ' + data.message);
+      }
+    } catch (error) {
+      alert('Error updating research: ' + error.message);
+    }
+  };
+
+  const formatResearchDate = (dateValue) => {
+    if (!dateValue) {
+      return 'Not specified';
+    }
+
+    const parsedDate = new Date(dateValue);
+    if (Number.isNaN(parsedDate.getTime())) {
+      return 'Not specified';
+    }
+
+    return parsedDate.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' });
   };
 
   const handleDeleteResearch = async () => {
@@ -373,7 +322,7 @@ export const CollegeResearch = () => {
                     </span>
                   </div>
                   
-                  <p className="text-xs text-gray-600 line-clamp-3">{research.abstract}</p>
+                  <p className="text-xs text-gray-600 line-clamp-3">{research.description || 'No description provided.'}</p>
                   
                   <div className="flex flex-wrap gap-1">
                     {research.keywords.slice(0, 3).map((keyword, i) => (
@@ -441,7 +390,7 @@ export const CollegeResearch = () => {
                       <User size={14} />
                       <span>{(research.authors || []).join(', ') || 'N/A'}</span>
                     </div>
-                    <p className="text-sm text-gray-600 mb-4 line-clamp-2">{research.abstract}</p>
+                    <p className="text-sm text-gray-600 mb-4 line-clamp-2">{research.description || 'No description provided.'}</p>
                     <div className="flex flex-wrap gap-2 mb-4">
                       {(research.keywords || []).map((keyword, i) => (
                         <span key={i} className="text-xs text-gray-500 bg-gray-50 px-2 py-1 rounded">
@@ -464,8 +413,11 @@ export const CollegeResearch = () => {
                       </div>
                     </div>
                   </div>
-                  <button className="p-3 bg-gray-50 hover:bg-gray-100 rounded-xl text-gray-400">
-                    <Download size={18} />
+                  <button className="p-3 bg-gray-50 hover:bg-gray-100 rounded-xl text-gray-400" onClick={(e) => {
+                    e.stopPropagation();
+                    setSelectedResearch(research);
+                  }}>
+                    <Eye size={18} />
                   </button>
                 </div>
               </div>
@@ -502,14 +454,14 @@ export const CollegeResearch = () => {
                 onClick={() => setSelectedResearch(null)}
                 className="p-2 hover:bg-gray-100 rounded-lg text-gray-400"
               >
-                <FileText size={20} />
+                <X size={20} />
               </button>
             </div>
 
             <div className="space-y-6">
               <div className="p-4 bg-gray-50 rounded-xl">
-                <h3 className="text-sm font-bold text-gray-900 mb-2">Abstract</h3>
-                <p className="text-sm text-gray-600 leading-relaxed">{selectedResearch.abstract}</p>
+                <h3 className="text-sm font-bold text-gray-900 mb-2">Research Summary</h3>
+                <p className="text-sm text-gray-600 leading-relaxed">{selectedResearch.description || 'No description provided.'}</p>
               </div>
 
               <div className="grid grid-cols-2 gap-4">
@@ -524,7 +476,7 @@ export const CollegeResearch = () => {
                 <div className="p-4 bg-gray-50 rounded-xl">
                   <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-2">Publication Date</p>
                   <p className="text-sm font-bold text-gray-900">
-                    {new Date(selectedResearch.date).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}
+                    {formatResearchDate(selectedResearch.date)}
                   </p>
                 </div>
                 <div className="p-4 bg-gray-50 rounded-xl">
@@ -565,15 +517,19 @@ export const CollegeResearch = () => {
               </div>
 
               <div className="flex gap-3 pt-4 border-t border-gray-100">
+                <button
+                  onClick={() => openEditModal(selectedResearch)}
+                  className="px-4 py-3 bg-gray-900 hover:bg-gray-800 text-white rounded-xl text-sm font-bold transition-colors flex items-center gap-2"
+                >
+                  <Edit size={16} />
+                  Edit
+                </button>
                 <button 
                   onClick={handleDeleteResearch}
                   className="flex-1 bg-red-600 hover:bg-red-700 text-white px-4 py-3 rounded-xl text-sm font-bold transition-colors flex items-center justify-center gap-2"
                 >
                   <Trash2 size={16} />
                   Delete Research
-                </button>
-                <button className="px-4 py-3 bg-gray-50 hover:bg-gray-100 text-gray-700 rounded-xl text-sm font-bold transition-colors">
-                  View Full Text
                 </button>
               </div>
             </div>
@@ -644,7 +600,7 @@ export const CollegeResearch = () => {
                     value={formData.status}
                     onChange={(e) => setFormData(prev => ({...prev, status: e.target.value}))}
                   >
-                    <option value="ongoing">Ongoing</option>
+                    <option value="Ongoing">Ongoing</option>
                     <option value="Published">Published</option>
                     <option value="Under Review">Under Review</option>
                     <option value="Draft">Draft</option>
@@ -658,6 +614,16 @@ export const CollegeResearch = () => {
                     className="w-full px-4 py-2 border border-gray-300 rounded-xl focus:ring-2 focus:ring-orange-500 outline-none transition-all"
                     value={formData.year}
                     onChange={(e) => setFormData(prev => ({...prev, year: e.target.value}))}
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Publication Date</label>
+                  <input
+                    type="date"
+                    autoComplete="off"
+                    className="w-full px-4 py-2 border border-gray-300 rounded-xl focus:ring-2 focus:ring-orange-500 outline-none transition-all"
+                    value={formData.date}
+                    onChange={(e) => setFormData(prev => ({...prev, date: e.target.value}))}
                   />
                 </div>
                 <div>
@@ -705,6 +671,81 @@ export const CollegeResearch = () => {
                   onClick={() => setShowAddModal(false)}
                   className="flex-1 bg-gray-200 hover:bg-gray-300 text-gray-700 font-semibold py-3 rounded-xl transition-colors"
                 >
+                  Cancel
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {showEditModal && (
+        <div className="fixed inset-0 bg-black/30 backdrop-blur-sm flex items-center justify-center z-50 p-4" onClick={() => setShowEditModal(false)}>
+          <div className="bg-white rounded-2xl shadow-xl max-w-2xl w-full max-h-[90vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
+            <div className="p-6 border-b border-gray-200 flex items-center justify-between">
+              <h2 className="text-xl font-bold text-gray-900">Edit Research</h2>
+              <button type="button" onClick={() => setShowEditModal(false)} className="text-gray-400 hover:text-gray-600">
+                <X size={24} />
+              </button>
+            </div>
+            <form onSubmit={handleEditResearch} className="p-6 space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Title *</label>
+                <input type="text" required autoComplete="off" className="w-full px-4 py-2 border border-gray-300 rounded-xl focus:ring-2 focus:ring-orange-500 outline-none transition-all" value={formData.title} onChange={(e) => setFormData(prev => ({...prev, title: e.target.value}))} />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Description</label>
+                <textarea autoComplete="off" rows={4} className="w-full px-4 py-2 border border-gray-300 rounded-xl focus:ring-2 focus:ring-orange-500 outline-none transition-all" value={formData.description} onChange={(e) => setFormData(prev => ({...prev, description: e.target.value}))} />
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Authors (comma-separated)</label>
+                  <input type="text" autoComplete="off" className="w-full px-4 py-2 border border-gray-300 rounded-xl focus:ring-2 focus:ring-orange-500 outline-none transition-all" value={formData.authors} onChange={(e) => setFormData(prev => ({...prev, authors: e.target.value}))} />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Category</label>
+                  <select className="w-full px-4 py-2 border border-gray-300 rounded-xl focus:ring-2 focus:ring-orange-500 outline-none transition-all" value={formData.category} onChange={(e) => setFormData(prev => ({...prev, category: e.target.value}))}>
+                    {researchCategories.filter(c => c !== 'All Categories').map(cat => (
+                      <option key={cat} value={cat}>{cat}</option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Status</label>
+                  <select className="w-full px-4 py-2 border border-gray-300 rounded-xl focus:ring-2 focus:ring-orange-500 outline-none transition-all" value={formData.status} onChange={(e) => setFormData(prev => ({...prev, status: e.target.value}))}>
+                    <option value="Ongoing">Ongoing</option>
+                    <option value="Published">Published</option>
+                    <option value="Under Review">Under Review</option>
+                    <option value="Draft">Draft</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Year</label>
+                  <input type="text" autoComplete="off" className="w-full px-4 py-2 border border-gray-300 rounded-xl focus:ring-2 focus:ring-orange-500 outline-none transition-all" value={formData.year} onChange={(e) => setFormData(prev => ({...prev, year: e.target.value}))} />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Publication Date</label>
+                  <input type="date" autoComplete="off" className="w-full px-4 py-2 border border-gray-300 rounded-xl focus:ring-2 focus:ring-orange-500 outline-none transition-all" value={formData.date} onChange={(e) => setFormData(prev => ({...prev, date: e.target.value}))} />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Journal</label>
+                  <input type="text" autoComplete="off" className="w-full px-4 py-2 border border-gray-300 rounded-xl focus:ring-2 focus:ring-orange-500 outline-none transition-all" value={formData.journal} onChange={(e) => setFormData(prev => ({...prev, journal: e.target.value}))} />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">DOI</label>
+                  <input type="text" autoComplete="off" className="w-full px-4 py-2 border border-gray-300 rounded-xl focus:ring-2 focus:ring-orange-500 outline-none transition-all" value={formData.doi} onChange={(e) => setFormData(prev => ({...prev, doi: e.target.value}))} />
+                </div>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Keywords (comma-separated)</label>
+                <input type="text" autoComplete="off" className="w-full px-4 py-2 border border-gray-300 rounded-xl focus:ring-2 focus:ring-orange-500 outline-none transition-all" value={formData.keywords} onChange={(e) => setFormData(prev => ({...prev, keywords: e.target.value}))} />
+              </div>
+              <div className="flex gap-3 pt-4">
+                <button type="submit" className="flex-1 bg-orange-600 hover:bg-orange-700 text-white font-semibold py-3 rounded-xl transition-colors flex items-center justify-center gap-2">
+                  <Save size={18} />
+                  Save Changes
+                </button>
+                <button type="button" onClick={() => setShowEditModal(false)} className="flex-1 bg-gray-200 hover:bg-gray-300 text-gray-700 font-semibold py-3 rounded-xl transition-colors">
                   Cancel
                 </button>
               </div>

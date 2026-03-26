@@ -1,6 +1,6 @@
 from flask import Blueprint, request, jsonify
-from models import db, Lesson
-from datetime import datetime
+from audit import log_audit_event
+from models import db, Lesson, Syllabus
 import json
 
 lessons_bp = Blueprint('lessons', __name__, url_prefix='/api/lessons')
@@ -41,7 +41,7 @@ def get_lessons():
 def create_lesson():
     """Create a new lesson"""
     try:
-        data = request.get_json()
+        data = request.get_json() or {}
         
         # Validate required fields
         required_fields = ['syllabus_id', 'title', 'week']
@@ -52,6 +52,13 @@ def create_lesson():
                     'message': f'{field} is required'
                 }), 400
         
+        syllabus = Syllabus.query.get(data['syllabus_id'])
+        if not syllabus:
+            return jsonify({
+                'success': False,
+                'message': 'Syllabus not found'
+            }), 404
+
         lesson = Lesson(
             syllabus_id=data['syllabus_id'],
             title=data['title'],
@@ -67,6 +74,15 @@ def create_lesson():
         
         db.session.add(lesson)
         db.session.commit()
+
+        log_audit_event(
+            action='CREATE',
+            entity_type='LESSON',
+            entity_id=lesson.id,
+            entity_name=lesson.title,
+            details={'syllabus_id': lesson.syllabus_id, 'week': lesson.week},
+            tenant_id=lesson.tenant_id,
+        )
         
         return jsonify({
             'success': True,
@@ -112,9 +128,15 @@ def update_lesson(lesson_id):
                 'message': 'Lesson not found'
             }), 404
         
-        data = request.get_json()
+        data = request.get_json() or {}
         
         if 'syllabus_id' in data:
+            syllabus = Syllabus.query.get(data['syllabus_id'])
+            if not syllabus:
+                return jsonify({
+                    'success': False,
+                    'message': 'Syllabus not found'
+                }), 404
             lesson.syllabus_id = data['syllabus_id']
         if 'title' in data:
             lesson.title = data['title']
@@ -134,6 +156,15 @@ def update_lesson(lesson_id):
             lesson.status = data['status']
         
         db.session.commit()
+
+        log_audit_event(
+            action='UPDATE',
+            entity_type='LESSON',
+            entity_id=lesson.id,
+            entity_name=lesson.title,
+            details={'syllabus_id': lesson.syllabus_id, 'week': lesson.week},
+            tenant_id=lesson.tenant_id,
+        )
         
         return jsonify({
             'success': True,
@@ -158,8 +189,18 @@ def delete_lesson(lesson_id):
                 'message': 'Lesson not found'
             }), 404
         
+        tenant_id = lesson.tenant_id
+        title = lesson.title
         db.session.delete(lesson)
         db.session.commit()
+
+        log_audit_event(
+            action='DELETE',
+            entity_type='LESSON',
+            entity_id=lesson_id,
+            entity_name=title,
+            tenant_id=tenant_id,
+        )
         
         return jsonify({
             'success': True,

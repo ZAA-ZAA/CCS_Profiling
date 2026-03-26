@@ -1,32 +1,23 @@
 from app import app
-from models import db, User
+from models import db
+from seeds import seed_demo_data
+
 
 def init_database():
-    """Initialize the database with tables"""
+    """Initialize the database schema and demo data."""
     with app.app_context():
         try:
-            # Create all tables
             db.create_all()
-            print("✅ Database tables created successfully!")
-            
-            # Create a default admin user if no users exist
-            if User.query.count() == 0:
-                admin = User(
-                    username='admin',
-                    email='admin@example.com',
-                    role='DEAN'
-                )
-                admin.set_password('admin123')
-                db.session.add(admin)
-                db.session.commit()
-                print("✅ Default admin user created!")
-                print("   Email: admin@example.com")
-                print("   Password: admin123")
-            
-        except Exception as e:
-            print(f"❌ Error initializing database: {str(e)}")
-            print("Make sure MySQL is running and credentials are correct.")
+            seed_demo_data()
+            db.session.commit()
+            print("Database tables created successfully.")
+            print("Demo account: admin@example.com / admin123")
+            print("Demo records seeded for students, faculty, schedules, events, research, and instructions.")
+        except Exception as exc:
+            db.session.rollback()
+            print(f"Error initializing database: {exc}")
+            print("Make sure MySQL is running and the configured credentials are correct.")
+
 
 if __name__ == '__main__':
     init_database()
-

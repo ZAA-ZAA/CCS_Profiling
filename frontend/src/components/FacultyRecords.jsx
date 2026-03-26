@@ -1,5 +1,5 @@
-import React, { useState, useEffect, useMemo, useCallback } from 'react';
-import { Search, UserPlus, MoreVertical, Mail, Phone, Building2, Calendar, X, Trash2, FileText, Edit } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { Search, UserPlus, MoreVertical, Mail, Phone, Building2, Calendar, Trash2, Edit } from 'lucide-react';
 import { FacultyForm } from './FacultyForm';
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000';
@@ -9,9 +9,8 @@ export const FacultyRecords = () => {
   const [selectedFaculty, setSelectedFaculty] = useState(null);
   const [showAddModal, setShowAddModal] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
-  const [showLogsModal, setShowLogsModal] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
-  const [filterDepartment, setFilterDepartment] = useState('All Departments');
+  const [filterDepartment, setFilterDepartment] = useState('');
   const [loading, setLoading] = useState(true);
   const [formData, setFormData] = useState({
     employee_number: '',
@@ -152,7 +151,7 @@ export const FacultyRecords = () => {
       facultyMember.employee_number?.toLowerCase().includes(searchTerm.toLowerCase()) ||
       facultyMember.email?.toLowerCase().includes(searchTerm.toLowerCase());
     
-    const matchesDepartment = filterDepartment === 'All Departments' || facultyMember.department === filterDepartment;
+    const matchesDepartment = !filterDepartment || facultyMember.department === filterDepartment;
     
     return matchesSearch && matchesDepartment;
   });
@@ -160,7 +159,11 @@ export const FacultyRecords = () => {
   return (
     <div className="flex gap-8 h-full animate-in fade-in slide-in-from-bottom-4 duration-500">
       <div className="flex-1 bg-white rounded-3xl border border-gray-100 shadow-sm overflow-hidden flex flex-col">
-        <div className="p-6 border-b border-gray-50 flex items-center justify-between">
+        <div className="p-6 border-b border-gray-50 flex items-center justify-between gap-4">
+          <div>
+            <h3 className="text-lg font-bold text-gray-900">Faculty Profiles</h3>
+            <p className="text-xs text-gray-500 mt-1">Manage faculty records used for scheduling and academic coordination.</p>
+          </div>
           <div className="relative flex-1 max-w-md">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
             <input 
@@ -177,10 +180,10 @@ export const FacultyRecords = () => {
               value={filterDepartment}
               onChange={(e) => setFilterDepartment(e.target.value)}
             >
-              <option>All Departments</option>
-              <option>BSIT</option>
-              <option>BSCS</option>
-              <option>BSIS</option>
+              <option value="">All Departments</option>
+              <option value="BSIT">BSIT</option>
+              <option value="BSCS">BSCS</option>
+              <option value="BSIS">BSIS</option>
             </select>
             <button 
               onClick={() => setShowAddModal(true)}
@@ -307,13 +310,6 @@ export const FacultyRecords = () => {
               Update Profile
             </button>
             <button 
-              onClick={() => setShowLogsModal(true)}
-              className="w-full px-4 py-2 rounded-xl text-sm font-bold border border-gray-200 text-gray-600 hover:bg-gray-50 transition-colors flex items-center justify-center gap-2"
-            >
-              <FileText size={16} />
-              View Logs
-            </button>
-            <button 
               onClick={handleDeleteFaculty}
               className="w-full px-4 py-2 rounded-xl text-sm font-bold bg-red-600 text-white hover:bg-red-700 transition-colors flex items-center justify-center gap-2"
             >
@@ -346,33 +342,6 @@ export const FacultyRecords = () => {
         />
       )}
 
-      {showLogsModal && selectedFaculty && (
-        <div className="fixed inset-0 bg-black/30 backdrop-blur-sm flex items-center justify-center z-50 p-4" onClick={() => setShowLogsModal(false)}>
-          <div className="bg-white rounded-2xl shadow-xl max-w-2xl w-full max-h-[90vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
-            <div className="p-6 border-b border-gray-200 flex items-center justify-between">
-              <h2 className="text-xl font-bold text-gray-900">Activity Logs - {selectedFaculty.first_name} {selectedFaculty.last_name}</h2>
-              <button onClick={() => setShowLogsModal(false)} className="text-gray-400 hover:text-gray-600">
-                <X size={24} />
-              </button>
-            </div>
-            <div className="p-6">
-              <div className="space-y-4">
-                <div className="p-4 bg-gray-50 rounded-xl">
-                  <p className="text-sm font-medium text-gray-900">Record Created</p>
-                  <p className="text-xs text-gray-500">{new Date(selectedFaculty.created_at).toLocaleString()}</p>
-                </div>
-                <div className="p-4 bg-gray-50 rounded-xl">
-                  <p className="text-sm font-medium text-gray-900">Last Updated</p>
-                  <p className="text-xs text-gray-500">{new Date(selectedFaculty.created_at).toLocaleString()}</p>
-                </div>
-                <div className="text-center text-gray-400 text-sm py-8">
-                  No additional activity logs available
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 };

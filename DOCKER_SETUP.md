@@ -1,136 +1,64 @@
 # Docker Setup Guide
 
-## Prerequisites
-- Docker Desktop installed and running
-- Docker Compose installed (usually comes with Docker Desktop)
+## Services
 
-## Quick Start
+`docker-compose.yml` starts:
 
-### 1. Create Environment File (Optional)
-If you need to set environment variables, create a `.env` file in the root directory:
+- `frontend` on port `3000`
+- `backend` on port `5000`
+- `mysql` on port `3306`
 
-```env
-GEMINI_API_KEY=your-api-key-here
-```
-
-### 2. Build and Run All Services
-Run both frontend and backend services:
+## Start the Stack
 
 ```bash
 docker-compose up --build
 ```
 
-This will:
-- Build the frontend Docker image
-- Build the backend Docker image
-- Start both containers
-- Frontend will be available at: http://localhost:3000
-- Backend API will be available at: http://localhost:5000
-
-### 3. Run in Detached Mode (Background)
-To run in the background:
+Run in the background:
 
 ```bash
 docker-compose up -d --build
 ```
 
-### 4. View Logs
-To see the logs from all services:
-
-```bash
-docker-compose logs -f
-```
-
-To see logs from a specific service:
-
-```bash
-docker-compose logs -f frontend
-docker-compose logs -f backend
-```
-
-### 5. Stop Services
-To stop all services:
+## Stop the Stack
 
 ```bash
 docker-compose down
 ```
 
-To stop and remove volumes:
+Remove volumes too:
 
 ```bash
 docker-compose down -v
 ```
 
-## Individual Service Commands
-
-### Run Only Frontend
-```bash
-docker-compose up frontend --build
-```
-
-### Run Only Backend
-```bash
-docker-compose up backend --build
-```
-
-## Useful Commands
-
-### Rebuild After Code Changes
-```bash
-docker-compose up --build
-```
-
-### View Running Containers
-```bash
-docker ps
-```
-
-### Access Container Shell
-```bash
-# Frontend container
-docker exec -it itew6-frontend sh
-
-# Backend container
-docker exec -it itew6-backend bash
-```
-
-### Remove All Containers and Images
-```bash
-docker-compose down --rmi all
-```
-
-## Troubleshooting
-
-### Port Already in Use
-If port 3000 or 5000 is already in use, you can change the ports in `docker-compose.yml`:
-
-```yaml
-ports:
-  - "3001:80"  # Change 3000 to 3001
-```
-
-### Rebuild from Scratch
-If you encounter issues, try rebuilding without cache:
+## View Logs
 
 ```bash
-docker-compose build --no-cache
-docker-compose up
+docker-compose logs -f
 ```
 
-### Check Container Status
+Specific service logs:
+
 ```bash
-docker-compose ps
+docker-compose logs -f frontend
+docker-compose logs -f backend
+docker-compose logs -f mysql
 ```
 
-## Development vs Production
+## Docker Notes
 
-For development, you might want to use volume mounts to see changes in real-time. You can modify `docker-compose.yml` to add volumes:
+- Frontend expects the backend at `http://localhost:5000`
+- Backend uses the MySQL container defined in `docker-compose.yml`
+- Run `python init_db.py` inside the backend container or locally after the stack starts to seed demo data
 
-```yaml
-services:
-  frontend:
-    volumes:
-      - ./frontend:/app
-      - /app/node_modules
+## Seed Demo Data in Docker
+
+```bash
+docker exec -it itew6-backend python init_db.py
 ```
 
+## Demo Login
+
+- Email: `admin@example.com`
+- Password: `admin123`

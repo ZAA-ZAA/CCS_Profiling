@@ -1,4 +1,5 @@
 from flask import Blueprint, request, jsonify
+from audit import log_audit_event
 from models import db, Research
 from datetime import datetime
 import json
@@ -38,7 +39,7 @@ def get_research():
 def create_research():
     """Create a new research"""
     try:
-        data = request.get_json()
+        data = request.get_json() or {}
         
         # Validate required fields
         if 'title' not in data or not data['title']:
@@ -56,15 +57,18 @@ def create_research():
         if data.get('date'):
             try:
                 publication_date = datetime.fromisoformat(data['date'].replace('Z', '+00:00')).date()
-            except:
-                pass
+            except Exception:
+                return jsonify({
+                    'success': False,
+                    'message': 'Invalid date format'
+                }), 400
         
         research = Research(
             title=data['title'],
             description=data.get('description'),
             authors=authors_str,
             category=data.get('category'),
-            status=data.get('status', 'ongoing'),
+            status=data.get('status', 'Ongoing'),
             keywords=keywords_str,
             citations=data.get('citations', 0),
             views=data.get('views', 0),
@@ -78,6 +82,15 @@ def create_research():
         
         db.session.add(research)
         db.session.commit()
+
+        log_audit_event(
+            action='CREATE',
+            entity_type='RESEARCH',
+            entity_id=research.id,
+            entity_name=research.title,
+            details={'category': research.category, 'status': research.status},
+            tenant_id=research.tenant_id,
+        )
         
         return jsonify({
             'success': True,
@@ -123,7 +136,7 @@ def update_research(research_id):
                 'message': 'Research not found'
             }), 404
         
-        data = request.get_json()
+        data = request.get_json() or {}
         
         if 'title' in data:
             research.title = data['title']
@@ -152,10 +165,24 @@ def update_research(research_id):
         if 'date' in data and data['date']:
             try:
                 research.publication_date = datetime.fromisoformat(data['date'].replace('Z', '+00:00')).date()
-            except:
-                pass
+            except Exception:
+                return jsonify({
+                    'success': False,
+                    'message': 'Invalid date format'
+                }), 400
+        if 'date' in data and not data['date']:
+            research.publication_date = None
         
         db.session.commit()
+
+        log_audit_event(
+            action='UPDATE',
+            entity_type='RESEARCH',
+            entity_id=research.id,
+            entity_name=research.title,
+            details={'category': research.category, 'status': research.status},
+            tenant_id=research.tenant_id,
+        )
         
         return jsonify({
             'success': True,
@@ -180,8 +207,18 @@ def delete_research(research_id):
                 'message': 'Research not found'
             }), 404
         
+        tenant_id = research.tenant_id
+        title = research.title
         db.session.delete(research)
         db.session.commit()
+
+        log_audit_event(
+            action='DELETE',
+            entity_type='RESEARCH',
+            entity_id=research_id,
+            entity_name=title,
+            tenant_id=tenant_id,
+        )
         
         return jsonify({
             'success': True,

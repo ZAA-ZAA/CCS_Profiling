@@ -1,36 +1,21 @@
-# ITEW6 Project Setup Guide
+# CCS System Setup Guide
 
-## Features Implemented
+## Overview
 
-✅ **Multitenant Registration System**
-- Users must register before logging in
-- Password hashing with Werkzeug
-- Tenant ID support for multitenant architecture
-- Role-based access (DEAN, CHAIR, FACULTY, SECRETARY)
+This project uses:
 
-✅ **MySQL Database**
-- Configured with PyMySQL
-- Multitenant support with tenant_id filtering
-- Proper database models with relationships
+- React + Vite for the frontend
+- Flask + SQLAlchemy for the backend
+- MySQL as the main database
 
-✅ **Authentication**
-- Secure password hashing
-- Email-based login
-- Registration with validation
-- User session management
+Node.js with Express was optional in the project brief, so this project keeps the existing Flask backend to avoid a risky rewrite.
 
-## Setup Instructions
+## 1. Database Setup
 
-### 1. Database Setup
+### Option A: Local MySQL
 
-#### Option A: Using Docker (Recommended)
-```bash
-docker-compose up -d mysql
-```
+Create a database and user:
 
-#### Option B: Local MySQL
-1. Install MySQL 8.0
-2. Create database:
 ```sql
 CREATE DATABASE itew6_db;
 CREATE USER 'itew6_user'@'localhost' IDENTIFIED BY 'itew6_password';
@@ -38,158 +23,155 @@ GRANT ALL PRIVILEGES ON itew6_db.* TO 'itew6_user'@'localhost';
 FLUSH PRIVILEGES;
 ```
 
-### 2. Backend Setup
+### Option B: SQLite for isolated testing
 
-1. Navigate to backend folder:
+For smoke tests, you can set:
+
+```env
+DATABASE_URL=sqlite:///ccs_system.db
+```
+
+## 2. Backend Setup
+
 ```bash
 cd backend
-```
-
-2. Install dependencies:
-```bash
 pip install -r requirements.txt
+python init_db.py
+python app.py
 ```
 
-3. Create `.env` file:
+Backend URL: `http://localhost:5000`
+
+## 3. Frontend Setup
+
+```bash
+cd frontend
+npm install
+npm run dev
+```
+
+Frontend URL: `http://localhost:3000`
+
+## 4. Environment Files
+
+Use these values from `.env.example`:
+
 ```env
-SECRET_KEY=your-secret-key-here
-JWT_SECRET_KEY=your-jwt-secret-key-here
+VITE_API_URL=http://localhost:5000
+SECRET_KEY=dev-secret-key
+JWT_SECRET_KEY=dev-jwt-secret-key
 MYSQL_HOST=localhost
 MYSQL_PORT=3306
 MYSQL_USER=itew6_user
 MYSQL_PASSWORD=itew6_password
 MYSQL_DATABASE=itew6_db
-PORT=5000
-FLASK_ENV=development
 ```
 
-4. Initialize database:
-```bash
-python init_db.py
-```
+## 5. Seeded Demo Data
 
-5. Run backend:
-```bash
-python app.py
-```
+`python init_db.py` seeds:
 
-Backend will run on: http://localhost:5000
+- admin login
+- students
+- faculty
+- schedules
+- events
+- organizations
+- research
+- syllabus
+- curriculum
+- lessons
 
-### 3. Frontend Setup
+Demo credentials:
 
-1. Navigate to frontend folder:
-```bash
-cd frontend
-```
+- Email: `admin@example.com`
+- Password: `admin123`
 
-2. Install dependencies:
-```bash
-npm install
-```
-
-3. Create `.env` file (optional):
-```env
-VITE_API_URL=http://localhost:5000
-```
-
-4. Run frontend:
-```bash
-npm run dev
-```
-
-Frontend will run on: http://localhost:3000
-
-### 4. Docker Setup (All Services)
-
-1. From project root:
-```bash
-docker-compose up --build
-```
-
-This will start:
-- Frontend: http://localhost:3000
-- Backend: http://localhost:5000
-- MySQL: localhost:3306
-
-## API Endpoints
+## 6. API Areas
 
 ### Authentication
-- `POST /api/auth/register` - Register new user
-- `POST /api/auth/login` - User login
-- `POST /api/auth/logout` - User logout
+
+- `POST /api/auth/register`
+- `POST /api/auth/login`
+- `POST /api/auth/logout`
 
 ### Students
-- `GET /api/students` - Get all students (supports ?tenant_id=)
-- `POST /api/students` - Create student
-- `GET /api/students/<id>` - Get student by ID
-- `PUT /api/students/<id>` - Update student
-- `DELETE /api/students/<id>` - Delete student
+
+- `GET /api/students`
+- `POST /api/students`
+- `GET /api/students/<id>`
+- `PUT /api/students/<id>`
+- `DELETE /api/students/<id>`
+
+Student filters supported:
+
+- `search`
+- `course`
+- `year_level`
+- `skill`
+- `activity`
+- `affiliation`
 
 ### Faculty
-- `GET /api/faculty` - Get all faculty (supports ?tenant_id=)
-- `POST /api/faculty` - Create faculty
-- `GET /api/faculty/<id>` - Get faculty by ID
-- `PUT /api/faculty/<id>` - Update faculty
-- `DELETE /api/faculty/<id>` - Delete faculty
 
-## Registration Flow
+- `GET /api/faculty`
+- `POST /api/faculty`
+- `GET /api/faculty/<id>`
+- `PUT /api/faculty/<id>`
+- `DELETE /api/faculty/<id>`
 
-1. User visits login page
-2. Clicks "Register Now" button
-3. Fills registration form:
-   - Username (required)
-   - Email (required, validated)
-   - Role (DEAN, CHAIR, FACULTY, SECRETARY)
-   - Password (min 6 characters)
-   - Confirm Password
-   - Tenant ID (optional for multitenant)
-4. Submits form
-5. On success, redirected to login
-6. Logs in with email and password
+### Scheduling
 
-## Multitenant Support
+- `GET /api/schedules`
+- `POST /api/schedules`
+- `PUT /api/schedules/<id>`
+- `DELETE /api/schedules/<id>`
 
-- All models support `tenant_id` field
-- API endpoints filter by `tenant_id` when provided
-- Users can belong to different tenants
-- Data isolation per tenant
+### Events
 
-## Button Functionality
+- `GET /api/reports?report_type=event`
+- `POST /api/reports`
+- `PUT /api/reports/<id>`
+- `DELETE /api/reports/<id>`
 
-All interactive buttons are now connected:
-- ✅ Login/Register buttons - Connected to backend API
-- ✅ Add Student/Faculty buttons - Ready for API integration
-- ✅ Edit/Delete buttons - Ready for API integration
-- ✅ Search functionality - Ready for API integration
-- ✅ Navigation buttons - Working
-- ✅ Logout button - Working
+### Research
 
-## Troubleshooting
+- `GET /api/research`
+- `POST /api/research`
+- `PUT /api/research/<id>`
+- `DELETE /api/research/<id>`
 
-### MySQL Connection Issues
-- Check MySQL is running
-- Verify credentials in `.env`
-- Check firewall settings
-- Ensure MySQL port 3306 is accessible
+### Instructions
 
-### Backend Not Starting
-- Check Python version (3.11+)
-- Verify all dependencies installed
-- Check database connection
-- Review error logs
+- `GET/POST/PUT/DELETE /api/syllabus`
+- `GET/POST/PUT/DELETE /api/curriculum`
+- `GET/POST/PUT/DELETE /api/lessons`
 
-### Frontend Not Connecting
-- Verify `VITE_API_URL` in `.env`
-- Check CORS settings
-- Ensure backend is running
-- Check browser console for errors
+## 7. Suggested Verification
 
-## Next Steps
+```bash
+cd frontend
+npm run build
+npm run lint
+```
 
-1. Connect frontend buttons to API endpoints
-2. Add form modals for Add/Edit operations
-3. Implement search functionality
-4. Add data validation on frontend
-5. Add loading states and error handling
-6. Implement JWT tokens for session management
+```bash
+cd backend
+python -m compileall .
+python -m unittest discover -s tests
+```
 
+## 8. Demo Checklist
+
+- Log in
+- Add student
+- Open student profile
+- Add skill/activity/affiliation
+- Run `Basketball` query
+- Run `Programming` query
+- Edit student
+- View faculty
+- Add schedule
+- Add event
+- View research
+- Add syllabus/curriculum/lesson

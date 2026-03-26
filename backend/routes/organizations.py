@@ -1,6 +1,6 @@
 from flask import Blueprint, request, jsonify
+from audit import log_audit_event
 from models import db, Organization
-from datetime import datetime
 
 organizations_bp = Blueprint('organizations', __name__, url_prefix='/api/organizations')
 
@@ -34,7 +34,7 @@ def get_organizations():
 def create_organization():
     """Create a new organization"""
     try:
-        data = request.get_json()
+        data = request.get_json() or {}
         
         # Validate required fields
         if 'name' not in data or not data['name']:
@@ -74,6 +74,15 @@ def create_organization():
         
         db.session.add(organization)
         db.session.commit()
+
+        log_audit_event(
+            action='CREATE',
+            entity_type='ORGANIZATION',
+            entity_id=organization.id,
+            entity_name=organization.name,
+            details={'full_name': organization.full_name, 'status': organization.status},
+            tenant_id=organization.tenant_id,
+        )
         
         return jsonify({
             'success': True,
@@ -119,7 +128,19 @@ def update_organization(org_id):
                 'message': 'Organization not found'
             }), 404
         
-        data = request.get_json()
+        data = request.get_json() or {}
+
+        next_name = data.get('name', organization.name)
+        duplicate = Organization.query.filter(
+            Organization.id != organization.id,
+            Organization.name == next_name,
+            Organization.tenant_id == organization.tenant_id,
+        ).first()
+        if duplicate:
+            return jsonify({
+                'success': False,
+                'message': 'Organization with this name already exists'
+            }), 400
         
         if 'name' in data:
             organization.name = data['name']
@@ -137,6 +158,15 @@ def update_organization(org_id):
             organization.description = data['description']
         
         db.session.commit()
+
+        log_audit_event(
+            action='UPDATE',
+            entity_type='ORGANIZATION',
+            entity_id=organization.id,
+            entity_name=organization.name,
+            details={'status': organization.status, 'members': organization.members},
+            tenant_id=organization.tenant_id,
+        )
         
         return jsonify({
             'success': True,
@@ -161,8 +191,18 @@ def delete_organization(org_id):
                 'message': 'Organization not found'
             }), 404
         
+        tenant_id = organization.tenant_id
+        name = organization.name
         db.session.delete(organization)
         db.session.commit()
+
+        log_audit_event(
+            action='DELETE',
+            entity_type='ORGANIZATION',
+            entity_id=org_id,
+            entity_name=name,
+            tenant_id=tenant_id,
+        )
         
         return jsonify({
             'success': True,

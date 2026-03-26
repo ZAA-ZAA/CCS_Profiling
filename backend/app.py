@@ -5,36 +5,42 @@ from config import config
 from models import db
 from routes import auth, students, faculty, schedules, audit_logs, research, reports, organizations, syllabus, curriculum, lessons
 
-app = Flask(__name__)
 
-# Load configuration
-app.config.from_object(config['default'])
+def create_app(config_overrides=None):
+    app = Flask(__name__)
+    env_name = 'production' if (config_overrides or {}).get('ENV') == 'production' else 'default'
+    app.config.from_object(config[env_name])
 
-# Initialize extensions
-db.init_app(app)
-CORS(app)  # Enable CORS for frontend communication
+    if config_overrides:
+        app.config.update(config_overrides)
 
-# Register blueprints
-app.register_blueprint(auth.auth_bp)
-app.register_blueprint(students.students_bp)
-app.register_blueprint(faculty.faculty_bp)
-app.register_blueprint(schedules.schedules_bp)
-app.register_blueprint(audit_logs.audit_logs_bp)
-app.register_blueprint(research.research_bp)
-app.register_blueprint(reports.reports_bp)
-app.register_blueprint(organizations.organizations_bp)
-app.register_blueprint(syllabus.syllabus_bp)
-app.register_blueprint(curriculum.curriculum_bp)
-app.register_blueprint(lessons.lessons_bp)
+    db.init_app(app)
+    CORS(app)
 
-@app.route('/api/health', methods=['GET'])
-def health_check():
-    """Health check endpoint"""
-    return jsonify({
-        'status': 'healthy',
-        'timestamp': datetime.now().isoformat()
-    })
+    app.register_blueprint(auth.auth_bp)
+    app.register_blueprint(students.students_bp)
+    app.register_blueprint(faculty.faculty_bp)
+    app.register_blueprint(schedules.schedules_bp)
+    app.register_blueprint(audit_logs.audit_logs_bp)
+    app.register_blueprint(research.research_bp)
+    app.register_blueprint(reports.reports_bp)
+    app.register_blueprint(organizations.organizations_bp)
+    app.register_blueprint(syllabus.syllabus_bp)
+    app.register_blueprint(curriculum.curriculum_bp)
+    app.register_blueprint(lessons.lessons_bp)
 
+    @app.route('/api/health', methods=['GET'])
+    def health_check():
+        """Health check endpoint"""
+        return jsonify({
+            'status': 'healthy',
+            'timestamp': datetime.now().isoformat()
+        })
+
+    return app
+
+
+app = create_app()
 
 
 if __name__ == '__main__':

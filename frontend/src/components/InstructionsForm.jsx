@@ -2,6 +2,28 @@ import React, { memo } from 'react';
 import { X, Save, Plus, Trash2 } from 'lucide-react';
 
 const InstructionsForm = memo(({ activeTab, formData, setFormData, syllabi, onSubmit, onClose }) => {
+  const updateListItem = (field, index, nextValue) => {
+    setFormData((prev) => {
+      const nextItems = [...(prev[field] || [])];
+      nextItems[index] = nextValue;
+      return { ...prev, [field]: nextItems };
+    });
+  };
+
+  const addListItem = (field, template) => {
+    setFormData((prev) => ({
+      ...prev,
+      [field]: [...(prev[field] || []), template],
+    }));
+  };
+
+  const removeListItem = (field, index) => {
+    setFormData((prev) => ({
+      ...prev,
+      [field]: (prev[field] || []).filter((_, itemIndex) => itemIndex !== index),
+    }));
+  };
+
   return (
     <div className="fixed inset-0 bg-black/30 backdrop-blur-sm flex items-center justify-center z-50 p-4" onClick={onClose}>
       <div className="bg-white rounded-2xl shadow-xl max-w-2xl w-full max-h-[90vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
@@ -128,6 +150,66 @@ const InstructionsForm = memo(({ activeTab, formData, setFormData, syllabi, onSu
                     onChange={(e) => setFormData(prev => ({...prev, description: e.target.value}))}
                   />
                 </div>
+              </div>
+
+              <div className="space-y-4 pt-2">
+                <div className="flex items-center justify-between">
+                  <label className="block text-sm font-medium text-gray-700">Course Objectives</label>
+                  <button type="button" onClick={() => addListItem('objectives', '')} className="px-3 py-1.5 bg-orange-600 hover:bg-orange-700 text-white rounded-lg text-sm font-bold flex items-center gap-2 transition-colors">
+                    <Plus size={14} />
+                    Add Objective
+                  </button>
+                </div>
+                {(formData.objectives || []).map((objective, index) => (
+                  <div key={index} className="flex items-center gap-2">
+                    <input
+                      type="text"
+                      autoComplete="off"
+                      className="flex-1 px-4 py-2 border border-gray-300 rounded-xl focus:ring-2 focus:ring-orange-500 outline-none transition-all"
+                      value={objective}
+                      onChange={(e) => updateListItem('objectives', index, e.target.value)}
+                      placeholder="Learning objective"
+                    />
+                    <button type="button" onClick={() => removeListItem('objectives', index)} className="p-2 hover:bg-red-50 rounded-lg text-red-400 transition-colors">
+                      <Trash2 size={16} />
+                    </button>
+                  </div>
+                ))}
+
+                <div className="flex items-center justify-between pt-2">
+                  <label className="block text-sm font-medium text-gray-700">Course Topics</label>
+                  <button type="button" onClick={() => addListItem('topics', { week: 1, topic: '', hours: 1 })} className="px-3 py-1.5 bg-orange-600 hover:bg-orange-700 text-white rounded-lg text-sm font-bold flex items-center gap-2 transition-colors">
+                    <Plus size={14} />
+                    Add Topic
+                  </button>
+                </div>
+                {(formData.topics || []).map((topic, index) => (
+                  <div key={index} className="grid grid-cols-[90px_1fr_90px_auto] gap-2 items-center">
+                    <input type="number" min="1" className="px-3 py-2 border border-gray-300 rounded-xl focus:ring-2 focus:ring-orange-500 outline-none transition-all" value={topic.week} onChange={(e) => updateListItem('topics', index, { ...topic, week: parseInt(e.target.value, 10) || 1 })} placeholder="Week" />
+                    <input type="text" autoComplete="off" className="px-4 py-2 border border-gray-300 rounded-xl focus:ring-2 focus:ring-orange-500 outline-none transition-all" value={topic.topic} onChange={(e) => updateListItem('topics', index, { ...topic, topic: e.target.value })} placeholder="Topic title" />
+                    <input type="number" min="1" className="px-3 py-2 border border-gray-300 rounded-xl focus:ring-2 focus:ring-orange-500 outline-none transition-all" value={topic.hours} onChange={(e) => updateListItem('topics', index, { ...topic, hours: parseInt(e.target.value, 10) || 1 })} placeholder="Hours" />
+                    <button type="button" onClick={() => removeListItem('topics', index)} className="p-2 hover:bg-red-50 rounded-lg text-red-400 transition-colors">
+                      <Trash2 size={16} />
+                    </button>
+                  </div>
+                ))}
+
+                <div className="flex items-center justify-between pt-2">
+                  <label className="block text-sm font-medium text-gray-700">Grading Requirements</label>
+                  <button type="button" onClick={() => addListItem('requirements', { type: '', weight: 0 })} className="px-3 py-1.5 bg-orange-600 hover:bg-orange-700 text-white rounded-lg text-sm font-bold flex items-center gap-2 transition-colors">
+                    <Plus size={14} />
+                    Add Requirement
+                  </button>
+                </div>
+                {(formData.requirements || []).map((requirement, index) => (
+                  <div key={index} className="grid grid-cols-[1fr_110px_auto] gap-2 items-center">
+                    <input type="text" autoComplete="off" className="px-4 py-2 border border-gray-300 rounded-xl focus:ring-2 focus:ring-orange-500 outline-none transition-all" value={requirement.type} onChange={(e) => updateListItem('requirements', index, { ...requirement, type: e.target.value })} placeholder="Requirement type" />
+                    <input type="number" min="0" className="px-3 py-2 border border-gray-300 rounded-xl focus:ring-2 focus:ring-orange-500 outline-none transition-all" value={requirement.weight} onChange={(e) => updateListItem('requirements', index, { ...requirement, weight: parseInt(e.target.value, 10) || 0 })} placeholder="Weight" />
+                    <button type="button" onClick={() => removeListItem('requirements', index)} className="p-2 hover:bg-red-50 rounded-lg text-red-400 transition-colors">
+                      <Trash2 size={16} />
+                    </button>
+                  </div>
+                ))}
               </div>
             </>
           )}
@@ -387,6 +469,63 @@ const InstructionsForm = memo(({ activeTab, formData, setFormData, syllabi, onSu
                     <option value="Discussion">Discussion</option>
                   </select>
                 </div>
+              </div>
+
+              <div className="space-y-4 pt-2">
+                <div className="flex items-center justify-between">
+                  <label className="block text-sm font-medium text-gray-700">Lesson Objectives</label>
+                  <button type="button" onClick={() => addListItem('objectives', '')} className="px-3 py-1.5 bg-orange-600 hover:bg-orange-700 text-white rounded-lg text-sm font-bold flex items-center gap-2 transition-colors">
+                    <Plus size={14} />
+                    Add Objective
+                  </button>
+                </div>
+                {(formData.objectives || []).map((objective, index) => (
+                  <div key={index} className="flex items-center gap-2">
+                    <input type="text" autoComplete="off" className="flex-1 px-4 py-2 border border-gray-300 rounded-xl focus:ring-2 focus:ring-orange-500 outline-none transition-all" value={objective} onChange={(e) => updateListItem('objectives', index, e.target.value)} placeholder="Lesson objective" />
+                    <button type="button" onClick={() => removeListItem('objectives', index)} className="p-2 hover:bg-red-50 rounded-lg text-red-400 transition-colors">
+                      <Trash2 size={16} />
+                    </button>
+                  </div>
+                ))}
+
+                <div className="flex items-center justify-between pt-2">
+                  <label className="block text-sm font-medium text-gray-700">Materials</label>
+                  <button type="button" onClick={() => addListItem('materials', { name: '', type: '', size: '' })} className="px-3 py-1.5 bg-orange-600 hover:bg-orange-700 text-white rounded-lg text-sm font-bold flex items-center gap-2 transition-colors">
+                    <Plus size={14} />
+                    Add Material
+                  </button>
+                </div>
+                {(formData.materials || []).map((material, index) => (
+                  <div key={index} className="grid grid-cols-[1fr_120px_110px_auto] gap-2 items-center">
+                    <input type="text" autoComplete="off" className="px-4 py-2 border border-gray-300 rounded-xl focus:ring-2 focus:ring-orange-500 outline-none transition-all" value={material.name} onChange={(e) => updateListItem('materials', index, { ...material, name: e.target.value })} placeholder="Material name" />
+                    <input type="text" autoComplete="off" className="px-4 py-2 border border-gray-300 rounded-xl focus:ring-2 focus:ring-orange-500 outline-none transition-all" value={material.type} onChange={(e) => updateListItem('materials', index, { ...material, type: e.target.value })} placeholder="Type" />
+                    <input type="text" autoComplete="off" className="px-4 py-2 border border-gray-300 rounded-xl focus:ring-2 focus:ring-orange-500 outline-none transition-all" value={material.size} onChange={(e) => updateListItem('materials', index, { ...material, size: e.target.value })} placeholder="Size" />
+                    <button type="button" onClick={() => removeListItem('materials', index)} className="p-2 hover:bg-red-50 rounded-lg text-red-400 transition-colors">
+                      <Trash2 size={16} />
+                    </button>
+                  </div>
+                ))}
+
+                <div className="flex items-center justify-between pt-2">
+                  <label className="block text-sm font-medium text-gray-700">Activities</label>
+                  <button type="button" onClick={() => addListItem('activities', { name: '', dueDate: '', status: 'Pending' })} className="px-3 py-1.5 bg-orange-600 hover:bg-orange-700 text-white rounded-lg text-sm font-bold flex items-center gap-2 transition-colors">
+                    <Plus size={14} />
+                    Add Activity
+                  </button>
+                </div>
+                {(formData.activities || []).map((activity, index) => (
+                  <div key={index} className="grid grid-cols-[1fr_140px_130px_auto] gap-2 items-center">
+                    <input type="text" autoComplete="off" className="px-4 py-2 border border-gray-300 rounded-xl focus:ring-2 focus:ring-orange-500 outline-none transition-all" value={activity.name} onChange={(e) => updateListItem('activities', index, { ...activity, name: e.target.value })} placeholder="Activity name" />
+                    <input type="date" className="px-4 py-2 border border-gray-300 rounded-xl focus:ring-2 focus:ring-orange-500 outline-none transition-all" value={activity.dueDate} onChange={(e) => updateListItem('activities', index, { ...activity, dueDate: e.target.value })} />
+                    <select className="px-4 py-2 border border-gray-300 rounded-xl focus:ring-2 focus:ring-orange-500 outline-none transition-all" value={activity.status} onChange={(e) => updateListItem('activities', index, { ...activity, status: e.target.value })}>
+                      <option value="Pending">Pending</option>
+                      <option value="Completed">Completed</option>
+                    </select>
+                    <button type="button" onClick={() => removeListItem('activities', index)} className="p-2 hover:bg-red-50 rounded-lg text-red-400 transition-colors">
+                      <Trash2 size={16} />
+                    </button>
+                  </div>
+                ))}
               </div>
             </>
           )}

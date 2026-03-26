@@ -1,4 +1,5 @@
 from flask import Blueprint, request, jsonify
+from audit import log_audit_event
 from models import db, Report
 from datetime import datetime
 
@@ -40,7 +41,7 @@ def get_reports():
 def create_report():
     """Create a new report"""
     try:
-        data = request.get_json()
+        data = request.get_json() or {}
         
         # Validate required fields
         if 'title' not in data or not data['title']:
@@ -81,6 +82,15 @@ def create_report():
         
         db.session.add(report)
         db.session.commit()
+
+        log_audit_event(
+            action='CREATE',
+            entity_type='EVENT',
+            entity_id=report.id,
+            entity_name=report.title,
+            details={'report_type': report.report_type, 'organization': report.organization},
+            tenant_id=report.tenant_id,
+        )
         
         return jsonify({
             'success': True,
@@ -126,10 +136,12 @@ def update_report(report_id):
                 'message': 'Report not found'
             }), 404
         
-        data = request.get_json()
+        data = request.get_json() or {}
         
         if 'title' in data:
             report.title = data['title']
+        if 'report_type' in data:
+            report.report_type = data['report_type']
         if 'description' in data:
             report.description = data['description']
         if 'organization' in data:
@@ -149,10 +161,22 @@ def update_report(report_id):
         if 'date' in data and data['date']:
             try:
                 report.date = datetime.fromisoformat(data['date'].replace('Z', '+00:00')).date()
-            except:
-                pass
+            except Exception:
+                return jsonify({
+                    'success': False,
+                    'message': 'Invalid date format'
+                }), 400
         
         db.session.commit()
+
+        log_audit_event(
+            action='UPDATE',
+            entity_type='EVENT',
+            entity_id=report.id,
+            entity_name=report.title,
+            details={'report_type': report.report_type, 'status': report.status},
+            tenant_id=report.tenant_id,
+        )
         
         return jsonify({
             'success': True,
@@ -177,8 +201,18 @@ def delete_report(report_id):
                 'message': 'Report not found'
             }), 404
         
+        tenant_id = report.tenant_id
+        title = report.title
         db.session.delete(report)
         db.session.commit()
+
+        log_audit_event(
+            action='DELETE',
+            entity_type='EVENT',
+            entity_id=report_id,
+            entity_name=title,
+            tenant_id=tenant_id,
+        )
         
         return jsonify({
             'success': True,

@@ -271,7 +271,7 @@ class Research(db.Model):
     description = db.Column(db.Text)
     authors = db.Column(db.Text)  # JSON string or comma-separated
     category = db.Column(db.String(100))
-    status = db.Column(db.String(50), default='ongoing')
+    status = db.Column(db.String(50), default='Ongoing')
     keywords = db.Column(db.Text)  # JSON string or comma-separated
     citations = db.Column(db.Integer, default=0)
     views = db.Column(db.Integer, default=0)
