@@ -1,10 +1,15 @@
 import React from 'react';
 import { X, Save } from 'lucide-react';
+import { CORE_COURSES, EMPLOYMENT_STATUSES } from '../lib/formOptions';
 
 export const FacultyForm = React.memo(({ onSubmit, onCancel, title, formData, setFormData }) => {
   const handleChange = React.useCallback((field, value) => {
     setFormData(prev => ({...prev, [field]: value}));
   }, [setFormData]);
+
+  const sanitizeName = React.useCallback((value) => value.replace(/[^A-Za-z .'-]/g, ''), []);
+  const sanitizeEmployeeNumber = React.useCallback((value) => value.replace(/[^A-Za-z0-9-]/g, '').toUpperCase(), []);
+  const sanitizePhone = React.useCallback((value) => value.replace(/\D/g, '').slice(0, 11), []);
 
   return (
     <div className="fixed inset-0 bg-black/30 backdrop-blur-sm flex items-center justify-center z-50 p-4" onClick={onCancel}>
@@ -16,7 +21,7 @@ export const FacultyForm = React.memo(({ onSubmit, onCancel, title, formData, se
           </button>
         </div>
         <form onSubmit={onSubmit} className="p-6 space-y-4">
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">Employee Number *</label>
               <input
@@ -25,7 +30,8 @@ export const FacultyForm = React.memo(({ onSubmit, onCancel, title, formData, se
                 autoComplete="off"
                 className="w-full px-4 py-2 border border-gray-300 rounded-xl focus:ring-2 focus:ring-orange-500 outline-none transition-all"
                 value={formData.employee_number || ''}
-                onChange={(e) => handleChange('employee_number', e.target.value)}
+                onChange={(e) => handleChange('employee_number', sanitizeEmployeeNumber(e.target.value))}
+                placeholder="e.g., FAC-1001"
               />
             </div>
             <div>
@@ -37,9 +43,9 @@ export const FacultyForm = React.memo(({ onSubmit, onCancel, title, formData, se
                 value={formData.department || 'BSIT'}
                 onChange={(e) => handleChange('department', e.target.value)}
               >
-                <option>BSIT</option>
-                <option>BSCS</option>
-                <option>BSIS</option>
+                {CORE_COURSES.map((course) => (
+                  <option key={course}>{course}</option>
+                ))}
               </select>
             </div>
             <div>
@@ -50,7 +56,7 @@ export const FacultyForm = React.memo(({ onSubmit, onCancel, title, formData, se
                 autoComplete="off"
                 className="w-full px-4 py-2 border border-gray-300 rounded-xl focus:ring-2 focus:ring-orange-500 outline-none transition-all"
                 value={formData.first_name || ''}
-                onChange={(e) => handleChange('first_name', e.target.value)}
+                onChange={(e) => handleChange('first_name', sanitizeName(e.target.value))}
               />
             </div>
             <div>
@@ -61,7 +67,7 @@ export const FacultyForm = React.memo(({ onSubmit, onCancel, title, formData, se
                 autoComplete="off"
                 className="w-full px-4 py-2 border border-gray-300 rounded-xl focus:ring-2 focus:ring-orange-500 outline-none transition-all"
                 value={formData.last_name || ''}
-                onChange={(e) => handleChange('last_name', e.target.value)}
+                onChange={(e) => handleChange('last_name', sanitizeName(e.target.value))}
               />
             </div>
             <div>
@@ -71,7 +77,7 @@ export const FacultyForm = React.memo(({ onSubmit, onCancel, title, formData, se
                 autoComplete="off"
                 className="w-full px-4 py-2 border border-gray-300 rounded-xl focus:ring-2 focus:ring-orange-500 outline-none transition-all"
                 value={formData.middle_name || ''}
-                onChange={(e) => handleChange('middle_name', e.target.value)}
+                onChange={(e) => handleChange('middle_name', sanitizeName(e.target.value))}
               />
             </div>
             <div>
@@ -92,7 +98,8 @@ export const FacultyForm = React.memo(({ onSubmit, onCancel, title, formData, se
                 autoComplete="off"
                 className="w-full px-4 py-2 border border-gray-300 rounded-xl focus:ring-2 focus:ring-orange-500 outline-none transition-all"
                 value={formData.email || ''}
-                onChange={(e) => handleChange('email', e.target.value)}
+                onChange={(e) => handleChange('email', e.target.value.trimStart())}
+                placeholder="faculty@uc.edu.ph"
               />
             </div>
             <div>
@@ -102,7 +109,9 @@ export const FacultyForm = React.memo(({ onSubmit, onCancel, title, formData, se
                 autoComplete="off"
                 className="w-full px-4 py-2 border border-gray-300 rounded-xl focus:ring-2 focus:ring-orange-500 outline-none transition-all"
                 value={formData.contact_number || ''}
-                onChange={(e) => handleChange('contact_number', e.target.value)}
+                onChange={(e) => handleChange('contact_number', sanitizePhone(e.target.value))}
+                inputMode="numeric"
+                placeholder="09XXXXXXXXX"
               />
             </div>
             <div>
@@ -124,10 +133,9 @@ export const FacultyForm = React.memo(({ onSubmit, onCancel, title, formData, se
                 value={formData.employment_status || 'Full-time'}
                 onChange={(e) => handleChange('employment_status', e.target.value)}
               >
-                <option>Full-time</option>
-                <option>Part-time</option>
-                <option>Contract</option>
-                <option>On Leave</option>
+                {EMPLOYMENT_STATUSES.map((status) => (
+                  <option key={status}>{status}</option>
+                ))}
               </select>
             </div>
           </div>

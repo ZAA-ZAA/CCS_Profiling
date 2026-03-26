@@ -271,6 +271,38 @@ def delete_skill(student_id, skill_id):
     return jsonify({'success': True, 'message': 'Skill deleted successfully'})
 
 
+@students_bp.route('/<int:student_id>/skills/<int:skill_id>', methods=['PUT'])
+def update_skill(student_id, skill_id):
+    """Update a student's skill."""
+    item = StudentSkill.query.filter_by(id=skill_id, student_id=student_id).first()
+    if not item:
+        return jsonify({'success': False, 'message': 'Skill not found'}), 404
+
+    data = request.get_json(silent=True) or {}
+    skill_name = (data.get('skill_name') or '').strip()
+    level = (data.get('level') or '').strip() or None
+
+    if not skill_name:
+        return jsonify({'success': False, 'message': 'skill_name is required'}), 400
+
+    existing = StudentSkill.query.filter_by(student_id=student_id, skill_name=skill_name).first()
+    if existing and existing.id != item.id:
+        return jsonify({'success': False, 'message': 'Skill already exists for this student'}), 400
+
+    item.skill_name = skill_name
+    item.level = level
+    db.session.commit()
+    log_audit_event(
+        'UPDATE',
+        'STUDENT_SKILL',
+        entity_id=item.id,
+        entity_name=skill_name,
+        details={'student_id': student_id},
+        req=request,
+    )
+    return jsonify({'success': True, 'message': 'Skill updated successfully', 'data': item.id})
+
+
 @students_bp.route('/<int:student_id>/academic-history', methods=['POST'])
 def add_academic_history(student_id):
     """Add academic history record to a student."""
@@ -319,6 +351,29 @@ def delete_academic_history(student_id, history_id):
         req=request,
     )
     return jsonify({'success': True, 'message': 'Academic history deleted successfully'})
+
+
+@students_bp.route('/<int:student_id>/academic-history/<int:history_id>', methods=['PUT'])
+def update_academic_history(student_id, history_id):
+    """Update academic history record."""
+    item = StudentAcademicHistory.query.filter_by(id=history_id, student_id=student_id).first()
+    if not item:
+        return jsonify({'success': False, 'message': 'Academic history not found'}), 404
+
+    data = request.get_json(silent=True) or {}
+    item.academic_year = (data.get('academic_year') or '').strip() or None
+    item.course = (data.get('course') or '').strip() or None
+    item.details = (data.get('details') or '').strip() or None
+    db.session.commit()
+    log_audit_event(
+        'UPDATE',
+        'STUDENT_ACADEMIC_HISTORY',
+        entity_id=item.id,
+        entity_name=item.course or item.academic_year or 'Academic History',
+        details={'student_id': student_id},
+        req=request,
+    )
+    return jsonify({'success': True, 'message': 'Academic history updated successfully', 'data': item.id})
 
 
 @students_bp.route('/<int:student_id>/activities', methods=['POST'])
@@ -372,6 +427,36 @@ def delete_activity(student_id, activity_id):
         req=request,
     )
     return jsonify({'success': True, 'message': 'Activity deleted successfully'})
+
+
+@students_bp.route('/<int:student_id>/activities/<int:activity_id>', methods=['PUT'])
+def update_activity(student_id, activity_id):
+    """Update a non-academic activity."""
+    item = StudentNonAcademicActivity.query.filter_by(id=activity_id, student_id=student_id).first()
+    if not item:
+        return jsonify({'success': False, 'message': 'Activity not found'}), 404
+
+    data = request.get_json(silent=True) or {}
+    activity_type = (data.get('activity_type') or '').strip() or None
+    activity_name = (data.get('activity_name') or '').strip()
+    details = (data.get('details') or '').strip() or None
+
+    if not activity_name:
+        return jsonify({'success': False, 'message': 'activity_name is required'}), 400
+
+    item.activity_type = activity_type
+    item.activity_name = activity_name
+    item.details = details
+    db.session.commit()
+    log_audit_event(
+        'UPDATE',
+        'STUDENT_ACTIVITY',
+        entity_id=item.id,
+        entity_name=activity_name,
+        details={'student_id': student_id},
+        req=request,
+    )
+    return jsonify({'success': True, 'message': 'Activity updated successfully', 'data': item.id})
 
 
 @students_bp.route('/<int:student_id>/violations', methods=['POST'])
@@ -436,6 +521,45 @@ def delete_violation(student_id, violation_id):
     return jsonify({'success': True, 'message': 'Violation deleted successfully'})
 
 
+@students_bp.route('/<int:student_id>/violations/<int:violation_id>', methods=['PUT'])
+def update_violation(student_id, violation_id):
+    """Update a violation record."""
+    item = StudentViolation.query.filter_by(id=violation_id, student_id=student_id).first()
+    if not item:
+        return jsonify({'success': False, 'message': 'Violation not found'}), 404
+
+    data = request.get_json(silent=True) or {}
+    violation_name = (data.get('violation_name') or '').strip()
+    severity = (data.get('severity') or '').strip() or None
+    date_str = (data.get('date') or '').strip() or None
+    details = (data.get('details') or '').strip() or None
+
+    if not violation_name:
+        return jsonify({'success': False, 'message': 'violation_name is required'}), 400
+
+    violation_date = None
+    if date_str:
+        try:
+            violation_date = datetime.strptime(date_str, '%Y-%m-%d').date()
+        except ValueError:
+            return jsonify({'success': False, 'message': 'date must be YYYY-MM-DD'}), 400
+
+    item.violation_name = violation_name
+    item.severity = severity
+    item.date = violation_date
+    item.details = details
+    db.session.commit()
+    log_audit_event(
+        'UPDATE',
+        'STUDENT_VIOLATION',
+        entity_id=item.id,
+        entity_name=violation_name,
+        details={'student_id': student_id},
+        req=request,
+    )
+    return jsonify({'success': True, 'message': 'Violation updated successfully', 'data': item.id})
+
+
 @students_bp.route('/<int:student_id>/affiliations', methods=['POST'])
 def add_affiliation(student_id):
     """Add an affiliation record."""
@@ -482,3 +606,33 @@ def delete_affiliation(student_id, affiliation_id):
         req=request,
     )
     return jsonify({'success': True, 'message': 'Affiliation deleted successfully'})
+
+
+@students_bp.route('/<int:student_id>/affiliations/<int:affiliation_id>', methods=['PUT'])
+def update_affiliation(student_id, affiliation_id):
+    """Update an affiliation record."""
+    item = StudentAffiliation.query.filter_by(id=affiliation_id, student_id=student_id).first()
+    if not item:
+        return jsonify({'success': False, 'message': 'Affiliation not found'}), 404
+
+    data = request.get_json(silent=True) or {}
+    name = (data.get('name') or '').strip()
+    category = (data.get('category') or '').strip() or None
+    role = (data.get('role') or '').strip() or None
+
+    if not name:
+        return jsonify({'success': False, 'message': 'name is required'}), 400
+
+    item.name = name
+    item.category = category
+    item.role = role
+    db.session.commit()
+    log_audit_event(
+        'UPDATE',
+        'STUDENT_AFFILIATION',
+        entity_id=item.id,
+        entity_name=name,
+        details={'student_id': student_id},
+        req=request,
+    )
+    return jsonify({'success': True, 'message': 'Affiliation updated successfully', 'data': item.id})

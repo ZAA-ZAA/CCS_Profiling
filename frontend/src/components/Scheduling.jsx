@@ -13,6 +13,8 @@ import {
 } from 'lucide-react';
 import { cn } from '../constants';
 import { ScheduleForm } from './ScheduleForm';
+import { useUI } from './ui/UIProvider';
+import { apiRequest } from '../lib/api';
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000';
 
@@ -22,9 +24,13 @@ const timeSlots = [
   '12:00 PM', '1:00 PM', '2:00 PM', '3:00 PM', '4:00 PM', '5:00 PM'
 ];
 
-export const Scheduling = () => {
+export const Scheduling = ({ navigationIntent, clearNavigationIntent, onNavigate }) => {
+  const { showError, showSuccess, confirm } = useUI();
   const [schedules, setSchedules] = useState([]);
   const [faculty, setFaculty] = useState([]);
+  const [studentsList, setStudentsList] = useState([]);
+  const [syllabi, setSyllabi] = useState([]);
+  const [lessons, setLessons] = useState([]);
   const [facultyLoading, setFacultyLoading] = useState(false);
   const [viewMode, setViewMode] = useState('calendar');
   const [selectedSchedule, setSelectedSchedule] = useState(null);
@@ -49,6 +55,10 @@ export const Scheduling = () => {
 
   useEffect(() => {
     fetchFaculty();
+  }, []);
+
+  useEffect(() => {
+    fetchLinkedData();
   }, []);
 
   useEffect(() => {
@@ -124,12 +134,12 @@ export const Scheduling = () => {
           section: ''
         });
         fetchSchedules();
-        alert('Schedule added successfully!');
+        showSuccess('Schedule added', 'The new schedule is now part of the weekly grid.');
       } else {
-        alert('Error: ' + data.message);
+        showError('Unable to add schedule', data.message);
       }
     } catch (error) {
-      alert('Error adding schedule: ' + error.message);
+      showError('Unable to add schedule', error.message);
     }
   };
 
@@ -146,17 +156,23 @@ export const Scheduling = () => {
         setShowEditModal(false);
         setSelectedSchedule(null);
         fetchSchedules();
-        alert('Schedule updated successfully!');
+        showSuccess('Schedule updated', 'The schedule changes were saved successfully.');
       } else {
-        alert('Error: ' + data.message);
+        showError('Unable to update schedule', data.message);
       }
     } catch (error) {
-      alert('Error updating schedule: ' + error.message);
+      showError('Unable to update schedule', error.message);
     }
   };
 
   const handleDeleteSchedule = async () => {
-    if (!window.confirm('Are you sure you want to delete this schedule?')) return;
+    const approved = await confirm({
+      title: 'Delete schedule?',
+      description: `This will remove the ${selectedSchedule?.subject || 'selected'} schedule.`,
+      confirmText: 'Delete schedule',
+      tone: 'danger',
+    });
+    if (!approved) return;
     
     try {
       const response = await fetch(`${API_URL}/api/schedules/${selectedSchedule.id}`, {
@@ -166,12 +182,12 @@ export const Scheduling = () => {
       if (data.success) {
         setSelectedSchedule(null);
         fetchSchedules();
-        alert('Schedule deleted successfully!');
+        showSuccess('Schedule deleted', 'The schedule was removed.');
       } else {
-        alert('Error: ' + data.message);
+        showError('Unable to delete schedule', data.message);
       }
     } catch (error) {
-      alert('Error deleting schedule: ' + error.message);
+      showError('Unable to delete schedule', error.message);
     }
   };
 
@@ -207,6 +223,63 @@ export const Scheduling = () => {
       const startTime = s.start_time || '';
       return startTime === timeSlot;
     });
+  };
+
+  const matchedStudents = selectedSchedule
+    ? studentsList.filter(
+        (student) =>
+          student.course === selectedSchedule.course &&
+          (!selectedSchedule.year_level || student.year_level === selectedSchedule.year_level),
+      )
+    : [];
+
+  const matchedSyllabi = selectedSchedule
+    ? syllabi.filter(
+        (syllabus) =>
+          syllabus.course === selectedSchedule.course &&
+          (syllabus.subject?.toLowerCase().includes((selectedSchedule.subject || '').toLowerCase()) ||
+            (selectedSchedule.subject || '').toLowerCase().includes((syllabus.subject || '').toLowerCase())),
+      )
+    : [];
+
+  const matchedLessons = matchedSyllabi.length
+    ? lessons.filter((lesson) => matchedSyllabi.some((syllabus) => syllabus.id === lesson.syllabus_id))
+    : [];
+
+  useEffect(() => {
+    if (navigationIntent?.tab !== 'scheduling') {
+      return;
+    }
+
+    const context = navigationIntent.context || {};
+    if (Object.prototype.hasOwnProperty.call(context, 'course')) {
+      setSelectedCourse(context.course || 'All Courses');
+    }
+    if (context.scheduleId) {
+      if (schedules.length === 0) {
+        return;
+      }
+      const record = schedules.find((item) => item.id === context.scheduleId);
+      if (record) {
+        setSelectedSchedule(record);
+      }
+    }
+    clearNavigationIntent?.();
+  }, [navigationIntent, clearNavigationIntent, schedules]);
+
+  const fetchLinkedData = async () => {
+    try {
+      const [studentsResponse, syllabusResponse, lessonResponse] = await Promise.all([
+        apiRequest('/api/students'),
+        apiRequest('/api/syllabus'),
+        apiRequest('/api/lessons'),
+      ]);
+      setStudentsList(studentsResponse.data || []);
+      setSyllabi(syllabusResponse.data || []);
+      setLessons(lessonResponse.data || []);
+    } catch (error) {
+      showError('Unable to load linked schedule data', error.message);
+    }
   };
 
   return (
@@ -512,6 +585,42 @@ export const Scheduling = () => {
                   <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Enrolled Students</p>
                 </div>
                 <p className="text-2xl font-bold text-gray-900">{selectedSchedule.students || 0} students</p>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="p-4 bg-gray-50 rounded-xl">
+                  <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-2">Matched Student Cohort</p>
+                  <div className="space-y-2">
+                    {matchedStudents.slice(0, 5).map((student) => (
+                      <button
+                        key={student.id}
+                        type="button"
+                        onClick={() => onNavigate?.('students', { studentId: student.id })}
+                        className="w-full rounded-xl bg-white px-3 py-2 text-left text-sm text-gray-700 hover:bg-orange-50"
+                      >
+                        {student.first_name} {student.last_name}
+                      </button>
+                    ))}
+                    {matchedStudents.length === 0 ? <p className="text-sm text-gray-500">No linked students found.</p> : null}
+                  </div>
+                </div>
+                <div className="p-4 bg-gray-50 rounded-xl">
+                  <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-2">Instruction Coverage</p>
+                  <div className="space-y-2">
+                    {matchedSyllabi.slice(0, 3).map((syllabus) => (
+                      <button
+                        key={syllabus.id}
+                        type="button"
+                        onClick={() => onNavigate?.('instructions', { type: 'syllabus', syllabusId: syllabus.id, course: syllabus.course })}
+                        className="w-full rounded-xl bg-white px-3 py-2 text-left text-sm text-gray-700 hover:bg-orange-50"
+                      >
+                        {syllabus.code} • {syllabus.subject}
+                      </button>
+                    ))}
+                    {matchedSyllabi.length === 0 ? <p className="text-sm text-gray-500">No syllabus matched yet.</p> : null}
+                    <p className="text-xs text-gray-500">{matchedLessons.length} lesson plan(s) linked</p>
+                  </div>
+                </div>
               </div>
 
               <div className="flex gap-3 pt-4 border-t border-gray-100">

@@ -73,6 +73,17 @@ class CCSApiSmokeTests(unittest.TestCase):
         self.assertEqual(logout_response.status_code, 200)
         self.assertTrue(logout_response.get_json()['success'])
 
+        account_response = self.client.put(
+            '/api/auth/account/1',
+            json={
+                'username': 'admin',
+                'email': 'admin.updated@example.com',
+                'password': 'admin123',
+            },
+        )
+        self.assertEqual(account_response.status_code, 200)
+        self.assertEqual(account_response.get_json()['data']['email'], 'admin.updated@example.com')
+
     def test_student_crud_and_query_filters(self):
         create_response = self.client.post(
             '/api/students',
@@ -109,6 +120,27 @@ class CCSApiSmokeTests(unittest.TestCase):
             json={'name': 'CCS Esports Club', 'category': 'Org', 'role': 'Member'},
         )
         self.assertEqual(affiliation_response.status_code, 201)
+        affiliation_id = affiliation_response.get_json()['data']
+
+        skill_id = skill_response.get_json()['data']
+        skill_update = self.client.put(
+            f'/api/students/{student_id}/skills/{skill_id}',
+            json={'skill_name': 'Programming', 'level': 'Intermediate'},
+        )
+        self.assertEqual(skill_update.status_code, 200)
+
+        activity_id = activity_response.get_json()['data']
+        activity_update = self.client.put(
+            f'/api/students/{student_id}/activities/{activity_id}',
+            json={'activity_name': 'Hackathon 2026', 'activity_type': 'Competition'},
+        )
+        self.assertEqual(activity_update.status_code, 200)
+
+        affiliation_update = self.client.put(
+            f'/api/students/{student_id}/affiliations/{affiliation_id}',
+            json={'name': 'CCS Esports Club', 'category': 'Organization', 'role': 'Officer'},
+        )
+        self.assertEqual(affiliation_update.status_code, 200)
 
         detail_response = self.client.get(f'/api/students/{student_id}')
         self.assertEqual(detail_response.status_code, 200)

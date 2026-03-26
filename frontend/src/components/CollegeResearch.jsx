@@ -14,6 +14,7 @@ import {
   Trash2
 } from 'lucide-react';
 import { cn } from '../constants';
+import { useUI } from './ui/UIProvider';
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000';
 
@@ -62,6 +63,7 @@ const emptyResearchForm = {
 };
 
 export const CollegeResearch = () => {
+  const { showError, showSuccess, confirm } = useUI();
   const [research, setResearch] = useState([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
@@ -133,12 +135,12 @@ export const CollegeResearch = () => {
         setShowAddModal(false);
         setFormData(emptyResearchForm);
         fetchResearch();
-        alert('Research added successfully!');
+        showSuccess('Research added', 'The research entry was saved successfully.');
       } else {
-        alert('Error: ' + data.message);
+        showError('Unable to add research', data.message);
       }
     } catch (error) {
-      alert('Error adding research: ' + error.message);
+      showError('Unable to add research', error.message);
     }
   };
 
@@ -163,12 +165,12 @@ export const CollegeResearch = () => {
         setShowEditModal(false);
         setSelectedResearch(data.data);
         fetchResearch();
-        alert('Research updated successfully!');
+        showSuccess('Research updated', 'The research entry was updated successfully.');
       } else {
-        alert('Error: ' + data.message);
+        showError('Unable to update research', data.message);
       }
     } catch (error) {
-      alert('Error updating research: ' + error.message);
+      showError('Unable to update research', error.message);
     }
   };
 
@@ -186,7 +188,13 @@ export const CollegeResearch = () => {
   };
 
   const handleDeleteResearch = async () => {
-    if (!window.confirm('Are you sure you want to delete this research?')) return;
+    const approved = await confirm({
+      title: 'Delete research entry?',
+      description: `This will remove "${selectedResearch?.title || 'the selected research'}".`,
+      confirmText: 'Delete research',
+      tone: 'danger',
+    });
+    if (!approved) return;
     
     try {
       const response = await fetch(`${API_URL}/api/research/${selectedResearch.id}`, {
@@ -196,12 +204,12 @@ export const CollegeResearch = () => {
       if (data.success) {
         setSelectedResearch(null);
         fetchResearch();
-        alert('Research deleted successfully!');
+        showSuccess('Research deleted', 'The research entry was removed.');
       } else {
-        alert('Error: ' + data.message);
+        showError('Unable to delete research', data.message);
       }
     } catch (error) {
-      alert('Error deleting research: ' + error.message);
+      showError('Unable to delete research', error.message);
     }
   };
 

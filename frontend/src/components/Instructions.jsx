@@ -12,10 +12,12 @@ import {
 } from 'lucide-react';
 import { cn } from '../constants';
 import InstructionsForm from './InstructionsForm';
+import { useUI } from './ui/UIProvider';
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000';
 
-export const Instructions = () => {
+export const Instructions = ({ navigationIntent, clearNavigationIntent }) => {
+  const { showError, showSuccess } = useUI();
   const initialFormState = {
     course: '',
     subject: '',
@@ -79,6 +81,30 @@ export const Instructions = () => {
         .catch(err => console.error('Error fetching syllabi:', err));
     }
   }, [activeTab]);
+
+  useEffect(() => {
+    if (navigationIntent?.tab !== 'instructions') {
+      return;
+    }
+
+    const context = navigationIntent.context || {};
+    if (context.type) {
+      setActiveTab(context.type);
+    }
+    if (Object.prototype.hasOwnProperty.call(context, 'course')) {
+      setSelectedCourse(context.course || 'All Courses');
+    }
+    if (context.syllabusId) {
+      if (syllabi.length === 0) {
+        return;
+      }
+      const syllabusRecord = syllabi.find((item) => item.id === context.syllabusId);
+      if (syllabusRecord) {
+        setSelectedSyllabus(syllabusRecord);
+      }
+    }
+    clearNavigationIntent?.();
+  }, [navigationIntent, clearNavigationIntent, syllabi]);
 
   const fetchData = useCallback(async () => {
     try {
@@ -185,14 +211,17 @@ export const Instructions = () => {
         setShowAddModal(false);
         setFormData(initialFormState);
         await fetchData();
-        alert(`${activeTab === 'syllabus' ? 'Syllabus' : activeTab === 'curriculum' ? 'Curriculum' : 'Lesson'} added successfully!`);
+        showSuccess(
+          `${activeTab === 'syllabus' ? 'Syllabus' : activeTab === 'curriculum' ? 'Curriculum' : 'Lesson'} added`,
+          'The instruction record was saved successfully.',
+        );
       } else {
-        alert('Error: ' + data.message);
+        showError('Unable to add record', data.message);
       }
     } catch (error) {
-      alert('Error adding item: ' + error.message);
+      showError('Unable to add record', error.message);
     }
-  }, [activeTab, formData, fetchData]);
+  }, [activeTab, formData, fetchData, showError, showSuccess]);
 
   return (
     <div className="space-y-8 animate-in fade-in duration-500">

@@ -12,8 +12,10 @@ import { OrgEventsReports } from './components/OrgEventsReports';
 import { AuditLogs } from './components/AuditLogs';
 import { ShieldCheck } from 'lucide-react';
 import { apiRequest } from './lib/api';
+import { UIProvider, useUI } from './components/ui/UIProvider';
+import { AccountSettingsModal } from './components/AccountSettingsModal';
 
-export default function App() {
+function AppShell() {
   const pageTitles = {
     dashboard: 'Dashboard',
     students: 'Student Profile',
@@ -34,6 +36,9 @@ export default function App() {
     return localStorage.getItem('activeTab') || 'dashboard';
   });
   const [showRegister, setShowRegister] = useState(false);
+  const [navigationIntent, setNavigationIntent] = useState(null);
+  const [showAccountSettings, setShowAccountSettings] = useState(false);
+  const { showError } = useUI();
 
   // Save user to localStorage whenever it changes
   useEffect(() => {
@@ -61,22 +66,64 @@ export default function App() {
     return <Login onLogin={(userData) => setUser(userData)} onSwitchToRegister={() => setShowRegister(true)} />;
   }
 
+  const handleNavigate = (tab, context = null) => {
+    setActiveTab(tab);
+    setNavigationIntent({
+      tab,
+      context,
+      timestamp: Date.now(),
+    });
+  };
+
+  const clearNavigationIntent = () => {
+    setNavigationIntent(null);
+  };
+
   const renderContent = () => {
     switch (activeTab) {
       case 'dashboard':
-        return <Dashboard />;
+        return <Dashboard onNavigate={handleNavigate} />;
       case 'students':
-        return <StudentRecords />;
+        return (
+          <StudentRecords
+            navigationIntent={navigationIntent}
+            clearNavigationIntent={clearNavigationIntent}
+            onNavigate={handleNavigate}
+          />
+        );
       case 'faculty':
-        return <FacultyRecords />;
+        return (
+          <FacultyRecords
+            navigationIntent={navigationIntent}
+            clearNavigationIntent={clearNavigationIntent}
+            onNavigate={handleNavigate}
+          />
+        );
       case 'scheduling':
-        return <Scheduling />;
+        return (
+          <Scheduling
+            navigationIntent={navigationIntent}
+            clearNavigationIntent={clearNavigationIntent}
+            onNavigate={handleNavigate}
+          />
+        );
       case 'research':
         return <CollegeResearch />;
       case 'instructions':
-        return <Instructions />;
+        return (
+          <Instructions
+            navigationIntent={navigationIntent}
+            clearNavigationIntent={clearNavigationIntent}
+          />
+        );
       case 'reports':
-        return <OrgEventsReports />;
+        return (
+          <OrgEventsReports
+            navigationIntent={navigationIntent}
+            clearNavigationIntent={clearNavigationIntent}
+            onNavigate={handleNavigate}
+          />
+        );
       case 'audit':
         return <AuditLogs />;
       default:
@@ -108,7 +155,7 @@ export default function App() {
               }
             });
           } catch (error) {
-            console.error('Logout request failed:', error);
+            showError('Logout sync failed', error.message);
           } finally {
             setUser(null);
             localStorage.removeItem('user');
@@ -124,13 +171,17 @@ export default function App() {
             {pageTitles[activeTab] || activeTab.replace('-', ' ')}
           </h2>
           
-          <div className="flex items-center gap-3 rounded-2xl bg-orange-50 px-4 py-2 text-sm">
+          <button
+            type="button"
+            onClick={() => setShowAccountSettings(true)}
+            className="flex items-center gap-3 rounded-2xl bg-orange-50 px-4 py-2 text-left text-sm transition-colors hover:bg-orange-100"
+          >
             <ShieldCheck className="text-orange-600" size={18} />
             <div className="text-right leading-tight">
               <p className="font-semibold text-gray-900">{user.username}</p>
               <p className="text-xs text-gray-500">{user.role}</p>
             </div>
-          </div>
+          </button>
         </header>
 
         {/* Content Area */}
@@ -138,6 +189,22 @@ export default function App() {
           {renderContent()}
         </div>
       </main>
+
+      {showAccountSettings ? (
+        <AccountSettingsModal
+          user={user}
+          onClose={() => setShowAccountSettings(false)}
+          onUserUpdated={(nextUser) => setUser(nextUser)}
+        />
+      ) : null}
     </div>
+  );
+}
+
+export default function App() {
+  return (
+    <UIProvider>
+      <AppShell />
+    </UIProvider>
   );
 }

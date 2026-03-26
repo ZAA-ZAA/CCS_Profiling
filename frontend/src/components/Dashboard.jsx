@@ -42,7 +42,7 @@ const formatEventTime = (timeValue) => {
   }).toLowerCase();
 };
 
-export const Dashboard = () => {
+export const Dashboard = ({ onNavigate }) => {
   const [stats, setStats] = useState({
     totalStudents: 0,
     totalFaculty: 0,
@@ -145,6 +145,7 @@ export const Dashboard = () => {
       icon: Users,
       trend: stats.totalStudents > 0 ? `+${stats.totalStudents}` : '0',
       up: true,
+      onClick: () => onNavigate?.('students'),
     },
     {
       label: 'TOTAL FACULTY',
@@ -152,6 +153,7 @@ export const Dashboard = () => {
       icon: UserSquare2,
       trend: stats.totalFaculty > 0 ? `+${stats.totalFaculty}` : '0',
       up: true,
+      onClick: () => onNavigate?.('faculty'),
     },
     {
       label: 'NEW STUDENTS',
@@ -159,6 +161,7 @@ export const Dashboard = () => {
       icon: UserPlus,
       trend: stats.newStudents > 0 ? `+${stats.newStudents}` : '0',
       up: stats.newStudents > 0,
+      onClick: () => onNavigate?.('students'),
     },
     {
       label: 'UPCOMING EVENTS',
@@ -166,6 +169,7 @@ export const Dashboard = () => {
       icon: Calendar,
       trend: stats.upcomingEvents > 0 ? `Next: ${events[0]?.title || 'Event'}` : 'No events',
       up: stats.upcomingEvents > 0,
+      onClick: () => onNavigate?.('reports'),
     },
   ];
 
@@ -181,7 +185,12 @@ export const Dashboard = () => {
     <div className="space-y-8 animate-in fade-in duration-500">
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
         {displayStats.map((stat, index) => (
-          <div key={index} className="bg-white p-6 rounded-2xl border border-gray-100 shadow-sm hover:shadow-md transition-shadow">
+          <button
+            key={index}
+            type="button"
+            onClick={stat.onClick}
+            className="bg-white p-6 rounded-2xl border border-gray-100 shadow-sm hover:shadow-md transition-shadow text-left hover:border-orange-200"
+          >
             <div className="flex items-start justify-between mb-4">
               <div className="p-3 bg-gray-50 rounded-xl">
                 <stat.icon className="text-gray-600" size={24} />
@@ -198,7 +207,7 @@ export const Dashboard = () => {
             </div>
             <p className="text-xs font-bold text-gray-400 tracking-wider mb-1">{stat.label}</p>
             <h3 className="text-3xl font-bold text-gray-900">{stat.value}</h3>
-          </div>
+          </button>
         ))}
       </div>
 
@@ -234,7 +243,14 @@ export const Dashboard = () => {
                     boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.1)',
                   }}
                 />
-                <Bar dataKey="students" fill="#ea580c" radius={[6, 6, 0, 0]} barSize={40} />
+                <Bar
+                  dataKey="students"
+                  fill="#ea580c"
+                  radius={[6, 6, 0, 0]}
+                  barSize={40}
+                  onClick={(data) => onNavigate?.('students', { course: data?.name })}
+                  cursor="pointer"
+                />
               </BarChart>
             </ResponsiveContainer>
           </div>
@@ -249,7 +265,12 @@ export const Dashboard = () => {
               </div>
             ) : (
               events.map((event) => (
-                <div key={event.id || event.title} className="flex gap-4 p-4 rounded-2xl hover:bg-gray-50 transition-colors cursor-pointer border border-transparent hover:border-gray-100">
+                <button
+                  key={event.id || event.title}
+                  type="button"
+                  onClick={() => onNavigate?.('reports', { eventId: event.id })}
+                  className="flex w-full gap-4 p-4 rounded-2xl hover:bg-gray-50 transition-colors cursor-pointer border border-transparent hover:border-gray-100 text-left"
+                >
                   <div className="p-3 bg-orange-50 rounded-xl h-fit">
                     <Bell className="text-orange-600" size={18} />
                   </div>
@@ -275,7 +296,7 @@ export const Dashboard = () => {
                       {event.status}
                     </span>
                   </div>
-                </div>
+                </button>
               ))
             )}
           </div>

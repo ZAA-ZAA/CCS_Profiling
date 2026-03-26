@@ -18,6 +18,9 @@ import {
   Edit,
 } from 'lucide-react';
 import { cn } from '../constants';
+import { useUI } from './ui/UIProvider';
+import { apiRequest } from '../lib/api';
+import { EVENT_CATEGORIES, EVENT_STATUSES } from '../lib/formOptions';
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000';
 
@@ -88,7 +91,8 @@ const formatEventDate = (dateValue) => {
   });
 };
 
-export const OrgEventsReports = () => {
+export const OrgEventsReports = ({ navigationIntent, clearNavigationIntent }) => {
+  const { showError, showSuccess, confirm } = useUI();
   const [reports, setReports] = useState([]);
   const [organizations, setOrganizations] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -118,6 +122,25 @@ export const OrgEventsReports = () => {
     setSelectedEvent(null);
     setSelectedOrg(null);
   }, [activeTab]);
+
+  useEffect(() => {
+    if (navigationIntent?.tab !== 'reports') {
+      return;
+    }
+
+    const context = navigationIntent.context || {};
+    setActiveTab('events');
+    if (context.eventId) {
+      if (reports.length === 0) {
+        return;
+      }
+      const record = reports.find((item) => item.id === context.eventId);
+      if (record) {
+        setSelectedEvent(record);
+      }
+    }
+    clearNavigationIntent?.();
+  }, [navigationIntent, clearNavigationIntent, reports]);
 
   const fetchReports = async () => {
     try {
@@ -187,29 +210,19 @@ export const OrgEventsReports = () => {
     e.preventDefault();
 
     try {
-      const response = await fetch(
-        `${API_URL}/api/reports${editingEventId ? `/${editingEventId}` : ''}`,
-        {
-          method: editingEventId ? 'PUT' : 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(eventFormData),
-        },
-      );
-      const data = await response.json();
-
-      if (!data.success) {
-        alert(`Error: ${data.message}`);
-        return;
-      }
+      const data = await apiRequest(`/api/reports${editingEventId ? `/${editingEventId}` : ''}`, {
+        method: editingEventId ? 'PUT' : 'POST',
+        body: eventFormData,
+      });
 
       closeEventModal();
       await fetchReports();
       if (selectedEvent?.id === data.data.id) {
         setSelectedEvent(data.data);
       }
-      alert(editingEventId ? 'Event updated successfully!' : 'Event added successfully!');
+      showSuccess(editingEventId ? 'Event updated' : 'Event added', 'The event record was saved successfully.');
     } catch (error) {
-      alert(`Error saving event: ${error.message}`);
+      showError('Unable to save event', error.message);
     }
   };
 
@@ -217,47 +230,40 @@ export const OrgEventsReports = () => {
     e.preventDefault();
 
     try {
-      const response = await fetch(`${API_URL}/api/organizations`, {
+      await apiRequest('/api/organizations', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(orgFormData),
+        body: orgFormData,
       });
-      const data = await response.json();
-
-      if (!data.success) {
-        alert(`Error: ${data.message}`);
-        return;
-      }
 
       setShowAddOrgModal(false);
       setOrgFormData(emptyOrgForm);
       await fetchOrganizations();
-      alert('Organization added successfully!');
+      showSuccess('Organization added', 'The organization is now available for affiliations and events.');
     } catch (error) {
-      alert(`Error adding organization: ${error.message}`);
+      showError('Unable to add organization', error.message);
     }
   };
 
   const handleDeleteReport = async () => {
     if (!selectedEvent?.id) return;
-    if (!window.confirm('Are you sure you want to delete this event?')) return;
+    const approved = await confirm({
+      title: 'Delete event?',
+      description: `This will permanently remove "${selectedEvent.title}".`,
+      confirmText: 'Delete event',
+      tone: 'danger',
+    });
+    if (!approved) return;
 
     try {
-      const response = await fetch(`${API_URL}/api/reports/${selectedEvent.id}`, {
+      await apiRequest(`/api/reports/${selectedEvent.id}`, {
         method: 'DELETE',
       });
-      const data = await response.json();
-
-      if (!data.success) {
-        alert(`Error: ${data.message}`);
-        return;
-      }
 
       setSelectedEvent(null);
       await fetchReports();
-      alert('Event deleted successfully!');
+      showSuccess('Event deleted', 'The selected event was removed.');
     } catch (error) {
-      alert(`Error deleting event: ${error.message}`);
+      showError('Unable to delete event', error.message);
     }
   };
 
@@ -727,22 +733,26 @@ export const OrgEventsReports = () => {
                     value={eventFormData.status}
                     onChange={(e) => setEventFormData((prev) => ({ ...prev, status: e.target.value }))}
                   >
-                    <option value="Upcoming">Upcoming</option>
-                    <option value="Registration Open">Registration Open</option>
-                    <option value="Pending Approval">Pending Approval</option>
-                    <option value="Completed">Completed</option>
-                    <option value="Cancelled">Cancelled</option>
+                    {EVENT_STATUSES.map((status) => (
+                      <option key={status} value={status}>
+                        {status}
+                      </option>
+                    ))}
                   </select>
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">Category</label>
-                  <input
-                    type="text"
-                    autoComplete="off"
+                  <select
                     className="w-full px-4 py-2 border border-gray-300 rounded-xl focus:ring-2 focus:ring-orange-500 outline-none transition-all"
                     value={eventFormData.category}
                     onChange={(e) => setEventFormData((prev) => ({ ...prev, category: e.target.value }))}
-                  />
+                  >
+                    {EVENT_CATEGORIES.map((category) => (
+                      <option key={category} value={category}>
+                        {category}
+                      </option>
+                    ))}
+                  </select>
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">Participants</label>
