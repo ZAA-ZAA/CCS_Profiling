@@ -1,6 +1,9 @@
+import os
+from datetime import datetime
+
 from flask import Flask, jsonify
 from flask_cors import CORS
-from datetime import datetime
+
 from config import config
 from models import db
 from routes import auth, students, faculty, schedules, audit_logs, research, reports, organizations, syllabus, curriculum, lessons
@@ -8,7 +11,9 @@ from routes import auth, students, faculty, schedules, audit_logs, research, rep
 
 def create_app(config_overrides=None):
     app = Flask(__name__)
-    env_name = 'production' if (config_overrides or {}).get('ENV') == 'production' else 'default'
+    override_env = (config_overrides or {}).get('ENV')
+    configured_env = override_env or os.environ.get('FLASK_ENV') or 'development'
+    env_name = 'production' if configured_env == 'production' else 'default'
     app.config.from_object(config[env_name])
 
     if config_overrides:
@@ -46,4 +51,5 @@ app = create_app()
 if __name__ == '__main__':
     port = app.config['PORT']
     app.run(host='0.0.0.0', port=port, debug=app.config['DEBUG'])
+
 

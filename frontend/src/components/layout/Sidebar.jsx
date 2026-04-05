@@ -10,11 +10,12 @@ import {
   Users,
   Clock,
   BookOpen,
-  FileText
+  FileText,
+  X
 } from 'lucide-react';
-import { cn } from '../constants';
+import { cn } from '../../constants';
 
-export const Sidebar = ({ role, activeTab, setActiveTab, onLogout }) => {
+export const Sidebar = ({ role, activeTab, setActiveTab, onLogout, open = true, onClose }) => {
   // Map backend roles to display names
   const roleDisplayMap = {
     'DEAN': 'Dean',
@@ -28,19 +29,37 @@ export const Sidebar = ({ role, activeTab, setActiveTab, onLogout }) => {
   const menuItems = [
     { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard, roles: ['DEAN', 'CHAIR', 'FACULTY', 'SECRETARY'] },
     { id: 'students', label: 'Student Profile', icon: IdCard, roles: ['DEAN', 'CHAIR', 'FACULTY', 'SECRETARY'] },
-    { id: 'faculty', label: 'Faculty Profile', icon: GraduationCap, roles: ['DEAN', 'CHAIR', 'FACULTY', 'SECRETARY'] },
+    { id: 'faculty', label: 'Faculty Profile', icon: GraduationCap, roles: ['DEAN', 'CHAIR', 'SECRETARY'] },
     { id: 'scheduling', label: 'Scheduling', icon: Clock, roles: ['DEAN', 'CHAIR', 'FACULTY', 'SECRETARY'] },
-    { id: 'research', label: 'College Research', icon: BookOpen, roles: ['DEAN', 'CHAIR', 'FACULTY', 'SECRETARY'] },
+    { id: 'research', label: 'College Research', icon: BookOpen, roles: ['DEAN', 'CHAIR', 'FACULTY'] },
     { id: 'instructions', label: 'Instructions', icon: FileText, roles: ['DEAN', 'CHAIR', 'FACULTY', 'SECRETARY'] },
     { id: 'reports', label: 'Events', icon: Calendar, roles: ['DEAN', 'CHAIR', 'FACULTY', 'SECRETARY'] },
-    { id: 'audit', label: 'Audit Logs', icon: MessageSquare, roles: ['DEAN', 'CHAIR', 'FACULTY', 'SECRETARY'], hasSubmenu: true },
+    { id: 'audit', label: 'Audit Logs', icon: MessageSquare, roles: ['DEAN'], hasSubmenu: true },
   ];
 
   const filteredItems = menuItems.filter(item => item.roles.includes(role || 'FACULTY'));
 
   return (
-    <aside className="w-72 shrink-0 overflow-hidden border-r border-gray-200 bg-white shadow-sm">
-      <div className="flex h-full flex-col">
+    <>
+      {/* Mobile backdrop */}
+      <div
+        className={cn(
+          'fixed inset-0 z-40 bg-slate-950/40 backdrop-blur-sm transition-opacity lg:hidden',
+          open ? 'opacity-100' : 'pointer-events-none opacity-0',
+        )}
+        onClick={onClose}
+        aria-hidden="true"
+      />
+
+      <aside
+        className={cn(
+          'z-50 w-[86vw] max-w-80 shrink-0 overflow-hidden border-r border-gray-200 bg-white shadow-sm sm:w-72 lg:w-72',
+          'fixed inset-y-0 left-0 transition-transform lg:static lg:translate-x-0',
+          open ? 'translate-x-0' : '-translate-x-full',
+        )}
+        aria-label="Sidebar navigation"
+      >
+        <div className="flex h-full flex-col">
       <div className="border-b border-gray-100 px-5 py-5">
         <div className="flex items-center gap-3 rounded-2xl bg-gradient-to-br from-orange-50 via-white to-emerald-50 p-3">
           <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl bg-white shadow-sm ring-1 ring-orange-100">
@@ -68,7 +87,10 @@ export const Sidebar = ({ role, activeTab, setActiveTab, onLogout }) => {
         {filteredItems.map((item) => (
           <button
             key={item.id}
-            onClick={() => setActiveTab(item.id)}
+            onClick={() => {
+              setActiveTab(item.id);
+              onClose?.();
+            }}
             className={cn(
               "group flex w-full items-center justify-between rounded-2xl px-4 py-3 text-sm font-semibold transition-all",
               activeTab === item.id 
@@ -122,7 +144,10 @@ export const Sidebar = ({ role, activeTab, setActiveTab, onLogout }) => {
         </div>
         
         <button 
-          onClick={onLogout}
+          onClick={() => {
+            onLogout?.();
+            onClose?.();
+          }}
           className="mt-4 flex w-full items-center justify-center gap-2 rounded-xl border border-red-100 px-4 py-3 text-sm font-bold text-red-500 transition-colors hover:bg-red-50"
         >
           <LogOut size={14} />
@@ -130,6 +155,19 @@ export const Sidebar = ({ role, activeTab, setActiveTab, onLogout }) => {
         </button>
       </div>
       </div>
-    </aside>
+      </aside>
+
+      {/* Mobile close button (only visible when drawer open) */}
+      {open ? (
+        <button
+          type="button"
+          onClick={onClose}
+          className="fixed left-3 top-3 z-[60] inline-flex items-center justify-center rounded-2xl bg-white/90 p-2 text-slate-700 shadow-lg ring-1 ring-slate-200 backdrop-blur lg:hidden"
+          aria-label="Close navigation"
+        >
+          <X size={18} />
+        </button>
+      ) : null}
+    </>
   );
 };

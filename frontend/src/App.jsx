@@ -1,19 +1,19 @@
 import React, { useState, useEffect } from 'react';
-import { Login } from './components/Login';
-import { Register } from './components/Register';
-import { Sidebar } from './components/Sidebar';
-import { Dashboard } from './components/Dashboard';
-import { StudentRecords } from './components/StudentRecords';
-import { FacultyRecords } from './components/FacultyRecords';
-import { Scheduling } from './components/Scheduling';
-import { CollegeResearch } from './components/CollegeResearch';
-import { Instructions } from './components/Instructions';
-import { OrgEventsReports } from './components/OrgEventsReports';
-import { AuditLogs } from './components/AuditLogs';
-import { ShieldCheck } from 'lucide-react';
+import { Login } from './components/auth/Login';
+import { Register } from './components/auth/Register';
+import { Sidebar } from './components/layout/Sidebar';
+import { Dashboard } from './components/dashboard/Dashboard';
+import { StudentRecords } from './components/students/StudentRecords';
+import { FacultyRecords } from './components/faculty/FacultyRecords';
+import { Scheduling } from './components/scheduling/Scheduling';
+import { CollegeResearch } from './components/research/CollegeResearch';
+import { Instructions } from './components/instructions/Instructions';
+import { OrgEventsReports } from './components/events/OrgEventsReports';
+import { AuditLogs } from './components/audit/AuditLogs';
+import { Menu, ShieldCheck } from 'lucide-react';
 import { apiRequest } from './lib/api';
 import { UIProvider, useUI } from './components/ui/UIProvider';
-import { AccountSettingsModal } from './components/AccountSettingsModal';
+import { AccountSettingsModal } from './components/account/AccountSettingsModal';
 
 function AppShell() {
   const pageTitles = {
@@ -38,6 +38,7 @@ function AppShell() {
   const [showRegister, setShowRegister] = useState(false);
   const [navigationIntent, setNavigationIntent] = useState(null);
   const [showAccountSettings, setShowAccountSettings] = useState(false);
+  const [sidebarOpen, setSidebarOpen] = useState(false);
   const { showError } = useUI();
 
   // Save user to localStorage whenever it changes
@@ -53,6 +54,16 @@ function AppShell() {
   useEffect(() => {
     localStorage.setItem('activeTab', activeTab);
   }, [activeTab]);
+
+  // Prevent background scrolling when mobile drawer is open
+  useEffect(() => {
+    if (!sidebarOpen) return;
+    const prevOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    return () => {
+      document.body.style.overflow = prevOverflow;
+    };
+  }, [sidebarOpen]);
 
   if (!user) {
     if (showRegister) {
@@ -139,11 +150,13 @@ function AppShell() {
   };
 
   return (
-    <div className="flex h-screen overflow-hidden bg-gray-50 font-sans text-gray-900">
+    <div className="flex h-dvh overflow-hidden bg-gray-50 font-sans text-gray-900">
       <Sidebar 
         role={user.role || 'FACULTY'} 
         activeTab={activeTab} 
         setActiveTab={setActiveTab} 
+        open={sidebarOpen}
+        onClose={() => setSidebarOpen(false)}
         onLogout={async () => {
           try {
             await apiRequest('/api/auth/logout', {
@@ -166,18 +179,28 @@ function AppShell() {
       
       <main className="flex min-w-0 flex-1 flex-col overflow-hidden">
         {/* Header */}
-        <header className="h-20 bg-white border-b border-gray-100 flex items-center justify-between px-8 sticky top-0 z-10">
-          <h2 className="text-xl font-bold text-gray-900">
-            {pageTitles[activeTab] || activeTab.replace('-', ' ')}
-          </h2>
+        <header className="h-16 sm:h-20 bg-white border-b border-gray-100 flex items-center justify-between px-4 sm:px-8 sticky top-0 z-10">
+          <div className="flex min-w-0 items-center gap-3">
+            <button
+              type="button"
+              onClick={() => setSidebarOpen(true)}
+              className="inline-flex items-center justify-center rounded-2xl border border-slate-200 bg-white p-2 text-slate-700 shadow-sm transition-colors hover:bg-slate-50 lg:hidden"
+              aria-label="Open navigation"
+            >
+              <Menu size={18} />
+            </button>
+            <h2 className="truncate text-base sm:text-xl font-bold text-gray-900">
+              {pageTitles[activeTab] || activeTab.replace('-', ' ')}
+            </h2>
+          </div>
           
           <button
             type="button"
             onClick={() => setShowAccountSettings(true)}
-            className="flex items-center gap-3 rounded-2xl bg-orange-50 px-4 py-2 text-left text-sm transition-colors hover:bg-orange-100"
+            className="flex items-center gap-3 rounded-2xl bg-orange-50 px-3 py-2 sm:px-4 text-left text-sm transition-colors hover:bg-orange-100"
           >
             <ShieldCheck className="text-orange-600" size={18} />
-            <div className="text-right leading-tight">
+            <div className="hidden text-right leading-tight sm:block">
               <p className="font-semibold text-gray-900">{user.username}</p>
               <p className="text-xs text-gray-500">{user.role}</p>
             </div>
@@ -185,7 +208,7 @@ function AppShell() {
         </header>
 
         {/* Content Area */}
-        <div className="min-w-0 flex-1 overflow-auto p-8">
+        <div className="min-w-0 flex-1 overflow-auto p-4 sm:p-8">
           {renderContent()}
         </div>
       </main>

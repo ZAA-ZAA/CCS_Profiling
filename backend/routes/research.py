@@ -1,5 +1,6 @@
 from flask import Blueprint, request, jsonify
 from audit import log_audit_event
+from authz import require_roles
 from models import db, Research
 from datetime import datetime
 import json
@@ -197,6 +198,7 @@ def update_research(research_id):
         }), 500
 
 @research_bp.route('/<int:research_id>', methods=['DELETE'])
+@require_roles(['DEAN'])
 def delete_research(research_id):
     """Delete a research"""
     try:

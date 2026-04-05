@@ -10,9 +10,9 @@ import {
   CheckCircle2,
   XCircle,
 } from 'lucide-react';
-import { cn } from '../constants';
+import { cn } from '../../constants';
 import InstructionsForm from './InstructionsForm';
-import { useUI } from './ui/UIProvider';
+import { useUI } from '../ui/UIProvider';
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000';
 

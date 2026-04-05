@@ -3,6 +3,7 @@ from datetime import datetime
 from flask import Blueprint, jsonify, request
 
 from audit import log_audit_event
+from authz import require_roles
 from models import Schedule, db
 
 schedules_bp = Blueprint('schedules', __name__, url_prefix='/api/schedules')
@@ -167,6 +168,7 @@ def update_schedule(schedule_id):
 
 
 @schedules_bp.route('/<int:schedule_id>', methods=['DELETE'])
+@require_roles(['DEAN'])
 def delete_schedule(schedule_id):
     """Delete a schedule."""
     try:

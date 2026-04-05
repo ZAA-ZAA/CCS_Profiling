@@ -19,17 +19,12 @@ Use [`backend/.env.example`](/c:/Users/zoen/Downloads/ITEW6/Test%201%20-%20Start
 Main database settings:
 
 ```env
-MYSQL_HOST=localhost
-MYSQL_PORT=3306
-MYSQL_USER=itew6_user
-MYSQL_PASSWORD=itew6_password
-MYSQL_DATABASE=itew6_db
-```
-
-Optional local override:
-
-```env
-DATABASE_URL=sqlite:///ccs_system.db
+MONGO_HOST=localhost
+MONGO_PORT=27017
+MONGO_USER=itew6_user
+MONGO_PASSWORD=itew6_password
+MONGO_DB_NAME=itew6_db
+MONGO_AUTH_DB=admin
 ```
 
 ## Seeded Demo Account

@@ -1,5 +1,6 @@
 from flask import Blueprint, request, jsonify
 from audit import log_audit_event
+from authz import require_roles
 from models import db, Organization
 
 organizations_bp = Blueprint('organizations', __name__, url_prefix='/api/organizations')
@@ -181,6 +182,7 @@ def update_organization(org_id):
         }), 500
 
 @organizations_bp.route('/<int:org_id>', methods=['DELETE'])
+@require_roles(['DEAN'])
 def delete_organization(org_id):
     """Delete an organization"""
     try:

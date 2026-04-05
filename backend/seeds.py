@@ -35,19 +35,29 @@ def get_or_create(model, filters, defaults=None):
     return instance, created
 
 
-def seed_user() -> None:
-    user, created = get_or_create(
-        User,
-        {'email': 'admin@example.com'},
-        {
-            'username': 'admin',
-            'role': 'DEAN',
-            'tenant_id': None,
-            'is_active': True,
-        },
-    )
-    if created or not user.check_password('admin123'):
-        user.set_password('admin123')
+def seed_users() -> None:
+    """Seed demo accounts for each supported role."""
+    demo_accounts = [
+        {'email': 'admin@example.com', 'username': 'admin', 'role': 'DEAN'},
+        {'email': 'chair@example.com', 'username': 'chair', 'role': 'CHAIR'},
+        {'email': 'faculty@example.com', 'username': 'faculty', 'role': 'FACULTY'},
+        {'email': 'secretary@example.com', 'username': 'secretary', 'role': 'SECRETARY'},
+    ]
+
+    for account in demo_accounts:
+        user, created = get_or_create(
+            User,
+            {'email': account['email']},
+            {
+                'username': account['username'],
+                'role': account['role'],
+                'tenant_id': None,
+                'is_active': True,
+            },
+        )
+        # Keep a predictable demo password for all seeded accounts.
+        if created or not user.check_password('admin123'):
+            user.set_password('admin123')
 
 
 def seed_faculty() -> list[Faculty]:
@@ -506,7 +516,7 @@ def seed_instructions() -> None:
 
 
 def seed_demo_data() -> None:
-    seed_user()
+    seed_users()
     faculty_members = seed_faculty()
     students = seed_students()
     db.session.flush()

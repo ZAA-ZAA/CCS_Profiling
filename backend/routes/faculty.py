@@ -10,6 +10,7 @@ if parent_dir not in sys.path:
     sys.path.insert(0, parent_dir)
 
 from audit import log_audit_event
+from authz import require_roles
 from models import Faculty, db
 
 faculty_bp = Blueprint('faculty', __name__, url_prefix='/api/faculty')
@@ -146,6 +147,7 @@ def update_faculty(faculty_id):
 
 
 @faculty_bp.route('/<int:faculty_id>', methods=['DELETE'])
+@require_roles(['DEAN'])
 def delete_faculty(faculty_id):
     """Delete a faculty member."""
     faculty = Faculty.query.get_or_404(faculty_id)

@@ -1,6 +1,6 @@
 # CCS Comprehensive Profiling System
 
-CCS Comprehensive Profiling System is a class-ready full-stack university information system built with React, Flask, and MySQL. It covers the required modules for the project brief:
+CCS Comprehensive Profiling System is a class-ready full-stack university information system built with React, Flask, and MongoDB. It covers the required modules for the project brief:
 
 - Student Profile
 - Faculty Profile
@@ -12,9 +12,8 @@ CCS Comprehensive Profiling System is a class-ready full-stack university inform
 ## Stack
 
 - Frontend: React + Vite
-- Backend: Flask + SQLAlchemy
-- Database: MySQL by default
-- Optional local test database: SQLite through `DATABASE_URL`
+- Backend: Flask
+- Database: MongoDB
 
 ## Core Project Coverage
 
@@ -75,17 +74,12 @@ Common values:
 VITE_API_URL=http://localhost:5000
 SECRET_KEY=dev-secret-key
 JWT_SECRET_KEY=dev-jwt-secret-key
-MYSQL_HOST=localhost
-MYSQL_PORT=3306
-MYSQL_USER=itew6_user
-MYSQL_PASSWORD=itew6_password
-MYSQL_DATABASE=itew6_db
-```
-
-Optional local testing override:
-
-```env
-DATABASE_URL=sqlite:///ccs_system.db
+MONGO_HOST=localhost
+MONGO_PORT=27017
+MONGO_USER=itew6_user
+MONGO_PASSWORD=itew6_password
+MONGO_DB_NAME=itew6_db
+MONGO_AUTH_DB=admin
 ```
 
 ## Database Seeding

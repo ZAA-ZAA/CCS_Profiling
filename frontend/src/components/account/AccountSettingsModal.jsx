@@ -1,8 +1,8 @@
 import React, { useMemo, useState } from 'react';
 import { KeyRound, Mail, Save, User2 } from 'lucide-react';
-import { apiRequest } from '../lib/api';
-import { useUI } from './ui/UIProvider';
-import { ModalShell } from './ui/ModalShell';
+import { apiRequest } from '../../lib/api';
+import { useUI } from '../ui/UIProvider';
+import { ModalShell } from '../ui/ModalShell';
 
 export function AccountSettingsModal({ user, onClose, onUserUpdated }) {
   const [formData, setFormData] = useState({

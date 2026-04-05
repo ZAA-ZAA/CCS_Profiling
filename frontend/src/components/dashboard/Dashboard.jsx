@@ -17,7 +17,7 @@ import {
   Tooltip,
   ResponsiveContainer,
 } from 'recharts';
-import { cn } from '../constants';
+import { cn } from '../../constants';
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000';
 

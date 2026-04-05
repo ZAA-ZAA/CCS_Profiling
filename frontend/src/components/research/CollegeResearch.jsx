@@ -13,8 +13,8 @@ import {
   Edit,
   Trash2
 } from 'lucide-react';
-import { cn } from '../constants';
-import { useUI } from './ui/UIProvider';
+import { cn } from '../../constants';
+import { useUI } from '../ui/UIProvider';
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000';
 

@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { LogIn, UserPlus, AlertCircle } from 'lucide-react';
 import { motion } from 'motion/react';
-import { apiRequest } from '../lib/api';
+import { apiRequest } from '../../lib/api';
 
 export const Login = ({ onLogin, onSwitchToRegister }) => {
   const [email, setEmail] = useState('');

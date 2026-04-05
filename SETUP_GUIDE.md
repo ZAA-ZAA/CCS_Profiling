@@ -5,31 +5,16 @@
 This project uses:
 
 - React + Vite for the frontend
-- Flask + SQLAlchemy for the backend
-- MySQL as the main database
+- Flask for the backend
+- MongoDB as the main database
 
 Node.js with Express was optional in the project brief, so this project keeps the existing Flask backend to avoid a risky rewrite.
 
 ## 1. Database Setup
 
-### Option A: Local MySQL
+### Local MongoDB
 
-Create a database and user:
-
-```sql
-CREATE DATABASE itew6_db;
-CREATE USER 'itew6_user'@'localhost' IDENTIFIED BY 'itew6_password';
-GRANT ALL PRIVILEGES ON itew6_db.* TO 'itew6_user'@'localhost';
-FLUSH PRIVILEGES;
-```
-
-### Option B: SQLite for isolated testing
-
-For smoke tests, you can set:
-
-```env
-DATABASE_URL=sqlite:///ccs_system.db
-```
+Start MongoDB locally (default port `27017`) or via Docker.
 
 ## 2. Backend Setup
 
@@ -60,11 +45,12 @@ Use these values from `.env.example`:
 VITE_API_URL=http://localhost:5000
 SECRET_KEY=dev-secret-key
 JWT_SECRET_KEY=dev-jwt-secret-key
-MYSQL_HOST=localhost
-MYSQL_PORT=3306
-MYSQL_USER=itew6_user
-MYSQL_PASSWORD=itew6_password
-MYSQL_DATABASE=itew6_db
+MONGO_HOST=localhost
+MONGO_PORT=27017
+MONGO_USER=itew6_user
+MONGO_PASSWORD=itew6_password
+MONGO_DB_NAME=itew6_db
+MONGO_AUTH_DB=admin
 ```
 
 ## 5. Seeded Demo Data

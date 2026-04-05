@@ -1,6 +1,5 @@
 import os
 import sys
-import tempfile
 import unittest
 from pathlib import Path
 
@@ -8,9 +7,8 @@ BASE_DIR = Path(__file__).resolve().parents[1]
 if str(BASE_DIR) not in sys.path:
     sys.path.insert(0, str(BASE_DIR))
 
-MODULE_TEMP_DIR = tempfile.TemporaryDirectory()
-MODULE_DB_PATH = os.path.join(MODULE_TEMP_DIR.name, 'test_ccs_system.db')
-os.environ['DATABASE_URL'] = f'sqlite:///{MODULE_DB_PATH}'
+os.environ['MONGO_MOCK'] = 'true'
+os.environ['MONGO_DB_NAME'] = 'ccs_system_test'
 
 from app import create_app  # noqa: E402
 from models import db  # noqa: E402
@@ -20,12 +18,11 @@ from seeds import seed_demo_data  # noqa: E402
 class CCSApiSmokeTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
-        cls.db_path = MODULE_DB_PATH
         cls.app = create_app(
             {
                 'TESTING': True,
-                'SQLALCHEMY_DATABASE_URI': f'sqlite:///{cls.db_path}',
-                'SQLALCHEMY_ENGINE_OPTIONS': {},
+                'MONGO_MOCK': True,
+                'MONGO_DB_NAME': 'ccs_system_test',
             }
         )
 
@@ -41,7 +38,6 @@ class CCSApiSmokeTests(unittest.TestCase):
             db.session.remove()
             db.drop_all()
             db.engine.dispose()
-        MODULE_TEMP_DIR.cleanup()
 
     def setUp(self):
         self.client = self.app.test_client()

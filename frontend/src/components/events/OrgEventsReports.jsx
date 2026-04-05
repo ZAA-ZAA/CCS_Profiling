@@ -17,10 +17,10 @@ import {
   Trash2,
   Edit,
 } from 'lucide-react';
-import { cn } from '../constants';
-import { useUI } from './ui/UIProvider';
-import { apiRequest } from '../lib/api';
-import { EVENT_CATEGORIES, EVENT_STATUSES } from '../lib/formOptions';
+import { cn } from '../../constants';
+import { useUI } from '../ui/UIProvider';
+import { apiRequest } from '../../lib/api';
+import { EVENT_CATEGORIES, EVENT_STATUSES } from '../../lib/formOptions';
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000';
 

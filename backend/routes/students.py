@@ -3,7 +3,6 @@ import os
 import sys
 
 from flask import Blueprint, jsonify, request
-from sqlalchemy import or_
 
 # Add parent directory to path for imports
 parent_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -11,6 +10,7 @@ if parent_dir not in sys.path:
     sys.path.insert(0, parent_dir)
 
 from audit import log_audit_event
+from authz import require_roles
 from models import (
     Student,
     StudentAcademicHistory,
@@ -19,6 +19,7 @@ from models import (
     StudentSkill,
     StudentViolation,
     db,
+    or_,
 )
 
 students_bp = Blueprint('students', __name__, url_prefix='/api/students')
@@ -201,6 +202,7 @@ def update_student(student_id):
 
 
 @students_bp.route('/<int:student_id>', methods=['DELETE'])
+@require_roles(['DEAN'])
 def delete_student(student_id):
     """Delete a student."""
     student = Student.query.get_or_404(student_id)

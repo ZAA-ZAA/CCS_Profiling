@@ -1,14 +1,14 @@
 import React from 'react';
 import { X, Save } from 'lucide-react';
-import { CORE_COURSES, EMPLOYMENT_STATUSES } from '../lib/formOptions';
+import { CORE_COURSES, ENROLLMENT_STATUSES, YEAR_LEVELS } from '../../lib/formOptions';
 
-export const FacultyForm = React.memo(({ onSubmit, onCancel, title, formData, setFormData }) => {
+export const StudentForm = React.memo(({ onSubmit, onCancel, title, formData, setFormData }) => {
   const handleChange = React.useCallback((field, value) => {
     setFormData(prev => ({...prev, [field]: value}));
   }, [setFormData]);
 
   const sanitizeName = React.useCallback((value) => value.replace(/[^A-Za-z .'-]/g, ''), []);
-  const sanitizeEmployeeNumber = React.useCallback((value) => value.replace(/[^A-Za-z0-9-]/g, '').toUpperCase(), []);
+  const sanitizeStudentId = React.useCallback((value) => value.replace(/[^A-Za-z0-9-]/g, '').toUpperCase(), []);
   const sanitizePhone = React.useCallback((value) => value.replace(/\D/g, '').slice(0, 11), []);
 
   return (
@@ -23,25 +23,26 @@ export const FacultyForm = React.memo(({ onSubmit, onCancel, title, formData, se
         <form onSubmit={onSubmit} className="p-6 space-y-4">
           <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Employee Number *</label>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Student ID *</label>
               <input
                 type="text"
                 required
                 autoComplete="off"
                 className="w-full px-4 py-2 border border-gray-300 rounded-xl focus:ring-2 focus:ring-orange-500 outline-none transition-all"
-                value={formData.employee_number || ''}
-                onChange={(e) => handleChange('employee_number', sanitizeEmployeeNumber(e.target.value))}
-                placeholder="e.g., FAC-1001"
+                value={formData.student_id || ''}
+                onChange={(e) => handleChange('student_id', sanitizeStudentId(e.target.value))}
+                placeholder="e.g., 2024-0001"
+                maxLength={20}
               />
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Department *</label>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Course *</label>
               <select
                 required
                 autoComplete="off"
                 className="w-full px-4 py-2 border border-gray-300 rounded-xl focus:ring-2 focus:ring-orange-500 outline-none transition-all"
-                value={formData.department || 'BSIT'}
-                onChange={(e) => handleChange('department', e.target.value)}
+                value={formData.course || 'BSIT'}
+                onChange={(e) => handleChange('course', e.target.value)}
               >
                 {CORE_COURSES.map((course) => (
                   <option key={course}>{course}</option>
@@ -57,6 +58,7 @@ export const FacultyForm = React.memo(({ onSubmit, onCancel, title, formData, se
                 className="w-full px-4 py-2 border border-gray-300 rounded-xl focus:ring-2 focus:ring-orange-500 outline-none transition-all"
                 value={formData.first_name || ''}
                 onChange={(e) => handleChange('first_name', sanitizeName(e.target.value))}
+                inputMode="text"
               />
             </div>
             <div>
@@ -68,6 +70,7 @@ export const FacultyForm = React.memo(({ onSubmit, onCancel, title, formData, se
                 className="w-full px-4 py-2 border border-gray-300 rounded-xl focus:ring-2 focus:ring-orange-500 outline-none transition-all"
                 value={formData.last_name || ''}
                 onChange={(e) => handleChange('last_name', sanitizeName(e.target.value))}
+                inputMode="text"
               />
             </div>
             <div>
@@ -78,18 +81,22 @@ export const FacultyForm = React.memo(({ onSubmit, onCancel, title, formData, se
                 className="w-full px-4 py-2 border border-gray-300 rounded-xl focus:ring-2 focus:ring-orange-500 outline-none transition-all"
                 value={formData.middle_name || ''}
                 onChange={(e) => handleChange('middle_name', sanitizeName(e.target.value))}
+                inputMode="text"
               />
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Position</label>
-              <input
-                type="text"
+              <label className="block text-sm font-medium text-gray-700 mb-1">Year Level *</label>
+              <select
+                required
                 autoComplete="off"
                 className="w-full px-4 py-2 border border-gray-300 rounded-xl focus:ring-2 focus:ring-orange-500 outline-none transition-all"
-                value={formData.position || ''}
-                onChange={(e) => handleChange('position', e.target.value)}
-                placeholder="e.g., Professor, Instructor"
-              />
+                value={formData.year_level || '1st Year'}
+                onChange={(e) => handleChange('year_level', e.target.value)}
+              >
+                {YEAR_LEVELS.map((yearLevel) => (
+                  <option key={yearLevel}>{yearLevel}</option>
+                ))}
+              </select>
             </div>
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">Email</label>
@@ -99,7 +106,7 @@ export const FacultyForm = React.memo(({ onSubmit, onCancel, title, formData, se
                 className="w-full px-4 py-2 border border-gray-300 rounded-xl focus:ring-2 focus:ring-orange-500 outline-none transition-all"
                 value={formData.email || ''}
                 onChange={(e) => handleChange('email', e.target.value.trimStart())}
-                placeholder="faculty@uc.edu.ph"
+                placeholder="student@uc.edu.ph"
               />
             </div>
             <div>
@@ -113,27 +120,18 @@ export const FacultyForm = React.memo(({ onSubmit, onCancel, title, formData, se
                 inputMode="numeric"
                 placeholder="09XXXXXXXXX"
               />
+              <p className="mt-1 text-xs text-gray-400">Numbers only. Example: 09171234567</p>
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Employment Start Date</label>
-              <input
-                type="date"
-                autoComplete="off"
-                className="w-full px-4 py-2 border border-gray-300 rounded-xl focus:ring-2 focus:ring-orange-500 outline-none transition-all"
-                value={formData.employment_start_date || ''}
-                onChange={(e) => handleChange('employment_start_date', e.target.value)}
-              />
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Employment Status *</label>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Enrollment Status *</label>
               <select
                 required
                 autoComplete="off"
                 className="w-full px-4 py-2 border border-gray-300 rounded-xl focus:ring-2 focus:ring-orange-500 outline-none transition-all"
-                value={formData.employment_status || 'Full-time'}
-                onChange={(e) => handleChange('employment_status', e.target.value)}
+                value={formData.enrollment_status || 'Enrolled'}
+                onChange={(e) => handleChange('enrollment_status', e.target.value)}
               >
-                {EMPLOYMENT_STATUSES.map((status) => (
+                {ENROLLMENT_STATUSES.map((status) => (
                   <option key={status}>{status}</option>
                 ))}
               </select>
@@ -169,5 +167,5 @@ export const FacultyForm = React.memo(({ onSubmit, onCancel, title, formData, se
   );
 });
 
-FacultyForm.displayName = 'FacultyForm';
+StudentForm.displayName = 'StudentForm';
 

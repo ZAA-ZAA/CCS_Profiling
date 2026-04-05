@@ -1,7 +1,11 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
+  Download,
   Edit3,
   Eye,
+  FileImage,
+  FileSpreadsheet,
+  FileText,
   GraduationCap,
   Mail,
   Phone,
@@ -10,12 +14,13 @@ import {
   ShieldAlert,
   Sparkles,
   Trash2,
+  Upload,
   Users,
 } from 'lucide-react';
 import { StudentForm } from './StudentForm';
-import { ModalShell } from './ui/ModalShell';
-import { useUI } from './ui/UIProvider';
-import { apiRequest } from '../lib/api';
+import { ModalShell } from '../ui/ModalShell';
+import { useUI } from '../ui/UIProvider';
+import { apiRequest } from '../../lib/api';
 import {
   ACTIVITY_TYPES,
   AFFILIATION_CATEGORIES,
@@ -23,9 +28,9 @@ import {
   CORE_COURSES,
   VIOLATION_SEVERITIES,
   YEAR_LEVELS,
-} from '../lib/formOptions';
-import { cn } from '../constants';
-import { getInitials, parseOptionalJson } from '../lib/display';
+} from '../../lib/formOptions';
+import { cn } from '../../constants';
+import { getInitials, parseOptionalJson } from '../../lib/display';
 
 const defaultStudentForm = {
   student_id: '',
@@ -71,6 +76,53 @@ const defaultDetailForms = {
   },
 };
 
+const STUDENT_EXPORT_COLUMNS = [
+  { key: 'student_id', label: 'Student ID', required: true },
+  { key: 'first_name', label: 'First Name', required: true },
+  { key: 'last_name', label: 'Last Name', required: true },
+  { key: 'middle_name', label: 'Middle Name', required: false },
+  { key: 'email', label: 'Email', required: false },
+  { key: 'contact_number', label: 'Contact Number', required: false },
+  { key: 'course', label: 'Course', required: true },
+  { key: 'year_level', label: 'Year Level', required: true },
+  { key: 'enrollment_status', label: 'Enrollment Status', required: false },
+];
+
+const STUDENT_REQUIRED_KEYS = STUDENT_EXPORT_COLUMNS.filter((column) => column.required).map((column) => column.key);
+const STUDENT_COLUMN_WIDTHS = [100, 105, 105, 95, 180, 120, 90, 95, 130];
+const STUDENT_FIELD_LIMITS = {
+  student_id: 50,
+  first_name: 100,
+  last_name: 100,
+  middle_name: 100,
+  email: 120,
+  contact_number: 20,
+  course: 100,
+  year_level: 50,
+  enrollment_status: 50,
+};
+
+const FILE_TYPE_OPTIONS = [
+  { key: 'excel', label: 'Excel', icon: FileSpreadsheet, accept: '.xlsx,.xls,.csv' },
+  { key: 'pdf', label: 'PDF', icon: FileText, accept: '.pdf' },
+  { key: 'image', label: 'Image', icon: FileImage, accept: '.png,.jpg,.jpeg,.webp' },
+];
+
+const STUDENT_COLUMN_ALIASES = {
+  student_id: ['student id', 'studentid', 'id number', 'id'],
+  first_name: ['first name', 'firstname', 'given name'],
+  last_name: ['last name', 'lastname', 'surname', 'family name'],
+  middle_name: ['middle name', 'middlename', 'middle initial'],
+  email: ['email', 'email address'],
+  contact_number: ['contact number', 'contact', 'phone', 'mobile', 'contact no'],
+  course: ['course', 'program'],
+  year_level: ['year level', 'yearlevel', 'year', 'level'],
+  enrollment_status: ['enrollment status', 'status', 'enrollment'],
+};
+
+const YEAR_LEVEL_OPTIONS = ['1st Year', '2nd Year', '3rd Year', '4th Year'];
+const ENROLLMENT_STATUS_OPTIONS = ['Enrolled', 'Irregular', 'On Leave', 'Graduated', 'Dropped'];
+
 const skillLevels = ['Beginner', 'Intermediate', 'Advanced', 'Competitive'];
 const violationSuggestions = [
   'Attendance',
@@ -79,6 +131,347 @@ const violationSuggestions = [
   'Misconduct',
   'Property Damage',
 ];
+
+function sanitizeValue(value) {
+  if (value === null || value === undefined) return '';
+  return String(value).trim();
+}
+
+function normalizeHeaderName(value) {
+  return sanitizeValue(value)
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, ' ')
+    .trim();
+}
+
+function normalizeHeaderToken(value) {
+  return sanitizeValue(value)
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '');
+}
+
+function headerMatchesAlias(header, alias) {
+  const headerName = normalizeHeaderName(header);
+  const aliasName = normalizeHeaderName(alias);
+  if (headerName === aliasName) return true;
+
+  const headerToken = normalizeHeaderToken(header);
+  const aliasToken = normalizeHeaderToken(alias);
+  if (!headerToken || !aliasToken) return false;
+  if (headerToken === aliasToken) return true;
+  if (aliasToken.length >= 5 && headerToken.includes(aliasToken)) return true;
+  if (headerToken.length >= 5 && aliasToken.includes(headerToken)) return true;
+  return false;
+}
+
+function scoreHeaderRow(headers) {
+  const matchedFields = new Set();
+  Object.entries(STUDENT_COLUMN_ALIASES).forEach(([fieldKey, aliases]) => {
+    const matched = aliases.some((alias) => headers.some((header) => headerMatchesAlias(header, alias)));
+    if (matched) matchedFields.add(fieldKey);
+  });
+  return matchedFields.size;
+}
+
+function convertMatrixToObjects(matrix) {
+  const meaningfulRows = matrix
+    .map((row) => (Array.isArray(row) ? row : []))
+    .filter((row) => row.some((cell) => sanitizeValue(cell)));
+
+  if (meaningfulRows.length === 0) {
+    return { objects: [], headerScore: 0 };
+  }
+
+  let bestHeaderIndex = -1;
+  let bestScore = -1;
+  const maxScan = Math.min(10, meaningfulRows.length);
+  for (let index = 0; index < maxScan; index += 1) {
+    const headers = meaningfulRows[index].map((cell) => sanitizeValue(cell));
+    const score = scoreHeaderRow(headers);
+    if (score > bestScore) {
+      bestScore = score;
+      bestHeaderIndex = index;
+    }
+  }
+
+  if (bestHeaderIndex < 0) {
+    return { objects: [], headerScore: 0 };
+  }
+
+  const headers = meaningfulRows[bestHeaderIndex].map((cell) => sanitizeValue(cell));
+  const dataRows = meaningfulRows.slice(bestHeaderIndex + 1);
+  const objects = dataRows
+    .map((cells) => {
+      const rowObject = {};
+      headers.forEach((header, index) => {
+        if (!header) return;
+        rowObject[header] = sanitizeValue(cells[index]);
+      });
+      return rowObject;
+    })
+    .filter((rowObject) => Object.values(rowObject).some((value) => sanitizeValue(value)));
+
+  return { objects, headerScore: bestScore };
+}
+
+function resolveValueFromAliases(row, aliases) {
+  if (!row || typeof row !== 'object') return '';
+  const entries = Object.entries(row);
+  for (const alias of aliases) {
+    const found = entries.find(([key]) => headerMatchesAlias(key, alias));
+    if (found) return sanitizeValue(found[1]);
+  }
+  return '';
+}
+
+function clampField(value, maxLength) {
+  return sanitizeValue(value).slice(0, maxLength);
+}
+
+function normalizeStudentId(value) {
+  const token = sanitizeValue(value).replace(/[^A-Za-z0-9-]/g, '').toUpperCase();
+  return token;
+}
+
+function normalizeName(value) {
+  return sanitizeValue(value).replace(/[^A-Za-z .'-]/g, '');
+}
+
+function normalizeEmail(value) {
+  return sanitizeValue(value).toLowerCase();
+}
+
+function normalizePhone(value) {
+  return sanitizeValue(value).replace(/\D/g, '').slice(0, 11);
+}
+
+function normalizeCourse(value) {
+  const raw = sanitizeValue(value).toUpperCase();
+  const matched = CORE_COURSES.find((course) => course.toUpperCase() === raw);
+  return matched || raw;
+}
+
+function normalizeYearLevel(value) {
+  const text = sanitizeValue(value);
+  const direct = YEAR_LEVEL_OPTIONS.find((year) => year.toLowerCase() === text.toLowerCase());
+  if (direct) return direct;
+
+  const match = text.match(/\b(1ST|2ND|3RD|4TH)\b/i);
+  if (!match) return '';
+  const key = match[1].toLowerCase();
+  if (key === '1st') return '1st Year';
+  if (key === '2nd') return '2nd Year';
+  if (key === '3rd') return '3rd Year';
+  if (key === '4th') return '4th Year';
+  return '';
+}
+
+function normalizeEnrollmentStatus(value) {
+  const text = sanitizeValue(value);
+  const direct = ENROLLMENT_STATUS_OPTIONS.find((status) => status.toLowerCase() === text.toLowerCase());
+  return direct || (text || 'Enrolled');
+}
+
+function toStudentPayload(rawRow) {
+  const studentId = normalizeStudentId(resolveValueFromAliases(rawRow, STUDENT_COLUMN_ALIASES.student_id));
+  const firstName = normalizeName(resolveValueFromAliases(rawRow, STUDENT_COLUMN_ALIASES.first_name));
+  const lastName = normalizeName(resolveValueFromAliases(rawRow, STUDENT_COLUMN_ALIASES.last_name));
+  const middleName = normalizeName(resolveValueFromAliases(rawRow, STUDENT_COLUMN_ALIASES.middle_name));
+  const email = normalizeEmail(resolveValueFromAliases(rawRow, STUDENT_COLUMN_ALIASES.email));
+  const contactNumber = normalizePhone(resolveValueFromAliases(rawRow, STUDENT_COLUMN_ALIASES.contact_number));
+  const course = normalizeCourse(resolveValueFromAliases(rawRow, STUDENT_COLUMN_ALIASES.course));
+  const yearLevel = normalizeYearLevel(resolveValueFromAliases(rawRow, STUDENT_COLUMN_ALIASES.year_level));
+  const enrollmentStatus = normalizeEnrollmentStatus(
+    resolveValueFromAliases(rawRow, STUDENT_COLUMN_ALIASES.enrollment_status),
+  );
+
+  return {
+    student_id: clampField(studentId, STUDENT_FIELD_LIMITS.student_id),
+    first_name: clampField(firstName, STUDENT_FIELD_LIMITS.first_name),
+    last_name: clampField(lastName, STUDENT_FIELD_LIMITS.last_name),
+    middle_name: clampField(middleName, STUDENT_FIELD_LIMITS.middle_name),
+    email: clampField(email, STUDENT_FIELD_LIMITS.email),
+    contact_number: clampField(contactNumber, STUDENT_FIELD_LIMITS.contact_number),
+    course: clampField(course, STUDENT_FIELD_LIMITS.course),
+    year_level: clampField(yearLevel, STUDENT_FIELD_LIMITS.year_level),
+    enrollment_status: clampField(enrollmentStatus, STUDENT_FIELD_LIMITS.enrollment_status),
+  };
+}
+
+function extractRowsFromText(text) {
+  const lines = sanitizeValue(text)
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .filter(Boolean);
+
+  if (lines.length === 0) return [];
+
+  const headerCandidates = lines.slice(0, Math.min(lines.length, 8));
+  const splitPatterns = [/\|/, /\t+/, /,\s*/, /\s{2,}/];
+  let headerTokens = null;
+  let headerPattern = null;
+  let headerLineIndex = -1;
+  let headerScore = -1;
+
+  headerCandidates.forEach((line, index) => {
+    splitPatterns.forEach((pattern) => {
+      const tokens = line.split(pattern).map((token) => sanitizeValue(token)).filter(Boolean);
+      if (tokens.length < 3) return;
+      const score = scoreHeaderRow(tokens);
+      if (score > headerScore) {
+        headerScore = score;
+        headerTokens = tokens;
+        headerPattern = pattern;
+        headerLineIndex = index;
+      }
+    });
+  });
+
+  if (headerTokens && headerPattern && headerScore >= 2) {
+    return lines
+      .slice(headerLineIndex + 1)
+      .map((line) => line.split(headerPattern).map((token) => sanitizeValue(token)))
+      .filter((tokens) => tokens.some(Boolean))
+      .map((tokens) => {
+        const row = {};
+        headerTokens.forEach((header, index) => {
+          row[header] = tokens[index] || '';
+        });
+        return row;
+      });
+  }
+
+  const heuristicRows = [];
+  lines.forEach((line) => {
+    const collapsed = line.replace(/\s+/g, ' ').trim();
+    const tokens = collapsed.split(' ');
+    if (tokens.length < 5) return;
+
+    const studentIdMatch = collapsed.match(/\b\d{4}-\d{3,6}\b/);
+    const studentId = studentIdMatch ? studentIdMatch[0] : tokens[0];
+    const yearMatch = collapsed.match(/\b(1st|2nd|3rd|4th)\s*Year\b/i);
+    const courseMatch = CORE_COURSES.find((course) => collapsed.toUpperCase().includes(course.toUpperCase()));
+    if (!studentId || !courseMatch || !yearMatch) return;
+
+    const idIndex = tokens.findIndex((token) => token === studentId);
+    const firstName = tokens[idIndex + 1] || '';
+    const lastName = tokens[idIndex + 2] || '';
+    const middleName = tokens[idIndex + 3] && !CORE_COURSES.includes(tokens[idIndex + 3].toUpperCase()) ? tokens[idIndex + 3] : '';
+    const emailMatch = collapsed.match(/[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}/);
+    const phoneMatch = collapsed.match(/\b09\d{9}\b/);
+
+    heuristicRows.push({
+      'Student ID': studentId,
+      'First Name': firstName,
+      'Last Name': lastName,
+      'Middle Name': middleName,
+      Email: emailMatch ? emailMatch[0] : '',
+      'Contact Number': phoneMatch ? phoneMatch[0] : '',
+      Course: courseMatch,
+      'Year Level': yearMatch[0],
+      'Enrollment Status': 'Enrolled',
+    });
+  });
+
+  return heuristicRows;
+}
+
+function truncateToWidth(ctx, value, width) {
+  const suffix = '...';
+  const text = sanitizeValue(value);
+  if (!text) return '';
+  if (ctx.measureText(text).width <= width) return text;
+
+  let output = text;
+  while (output.length > 0 && ctx.measureText(`${output}${suffix}`).width > width) {
+    output = output.slice(0, -1);
+  }
+  return output ? `${output}${suffix}` : '';
+}
+
+function buildStudentCanvasTable(rows) {
+  const paddingX = 12;
+  const rowHeight = 34;
+  const headerHeight = 40;
+  const tableWidth = STUDENT_COLUMN_WIDTHS.reduce((sum, width) => sum + width, 0);
+  const titleHeight = 52;
+  const footerHeight = 24;
+  const canvas = document.createElement('canvas');
+  canvas.width = tableWidth + 2;
+  canvas.height = titleHeight + headerHeight + (rows.length * rowHeight) + footerHeight + 2;
+  const ctx = canvas.getContext('2d');
+  if (!ctx) return canvas;
+
+  ctx.fillStyle = '#ffffff';
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+  ctx.fillStyle = '#111827';
+  ctx.font = 'bold 18px Arial';
+  ctx.fillText('Student Export', paddingX, 30);
+  ctx.fillStyle = '#6b7280';
+  ctx.font = '12px Arial';
+  ctx.fillText(`Generated: ${new Date().toLocaleString()}`, paddingX, 46);
+
+  const tableTop = titleHeight;
+  ctx.fillStyle = '#f97316';
+  ctx.fillRect(1, tableTop + 1, tableWidth, headerHeight - 1);
+
+  ctx.font = 'bold 12px Arial';
+  ctx.fillStyle = '#ffffff';
+  let cursorX = 1;
+  STUDENT_EXPORT_COLUMNS.forEach((column, index) => {
+    const width = STUDENT_COLUMN_WIDTHS[index];
+    const text = truncateToWidth(ctx, column.label, width - (paddingX * 2));
+    ctx.fillText(text, cursorX + paddingX, tableTop + 24);
+    cursorX += width;
+  });
+
+  rows.forEach((row, rowIndex) => {
+    const top = tableTop + headerHeight + (rowIndex * rowHeight);
+    ctx.fillStyle = rowIndex % 2 === 0 ? '#ffffff' : '#f9fafb';
+    ctx.fillRect(1, top, tableWidth, rowHeight);
+  });
+
+  ctx.font = '12px Arial';
+  ctx.fillStyle = '#111827';
+  rows.forEach((row, rowIndex) => {
+    let cellX = 1;
+    const top = tableTop + headerHeight + (rowIndex * rowHeight);
+    STUDENT_EXPORT_COLUMNS.forEach((column, columnIndex) => {
+      const width = STUDENT_COLUMN_WIDTHS[columnIndex];
+      const rawValue = row[column.label] ?? '';
+      const text = truncateToWidth(ctx, rawValue, width - (paddingX * 2));
+      ctx.fillText(text, cellX + paddingX, top + 22);
+      cellX += width;
+    });
+  });
+
+  ctx.strokeStyle = '#d1d5db';
+  ctx.lineWidth = 1;
+  ctx.strokeRect(0.5, tableTop + 0.5, tableWidth + 1, headerHeight + (rows.length * rowHeight) + 1);
+
+  let gridX = 1;
+  STUDENT_COLUMN_WIDTHS.forEach((width) => {
+    ctx.beginPath();
+    ctx.moveTo(gridX + 0.5, tableTop + 0.5);
+    ctx.lineTo(gridX + 0.5, tableTop + headerHeight + (rows.length * rowHeight) + 1);
+    ctx.stroke();
+    gridX += width;
+  });
+
+  for (let index = 0; index <= rows.length; index += 1) {
+    const y = tableTop + headerHeight + (index * rowHeight) + 0.5;
+    ctx.beginPath();
+    ctx.moveTo(0.5, y);
+    ctx.lineTo(tableWidth + 1.5, y);
+    ctx.stroke();
+  }
+
+  ctx.fillStyle = '#6b7280';
+  ctx.font = '12px Arial';
+  ctx.fillText(`Total rows exported: ${rows.length}`, paddingX, canvas.height - 8);
+  return canvas;
+}
 
 function getTopItems(items, limit = 4) {
   const counts = new Map();
@@ -215,6 +608,14 @@ export function StudentRecords({ navigationIntent, clearNavigationIntent, onNavi
   const [syllabi, setSyllabi] = useState([]);
   const [curricula, setCurricula] = useState([]);
   const [lessons, setLessons] = useState([]);
+  const [exportingFormat, setExportingFormat] = useState('');
+  const [importingFormat, setImportingFormat] = useState('');
+  const [openActionMenu, setOpenActionMenu] = useState('');
+  const [pendingImportType, setPendingImportType] = useState('excel');
+  const actionMenuRef = useRef(null);
+  const fileInputRef = useRef(null);
+  const pendingImportTypeRef = useRef('excel');
+  const isProcessingFile = Boolean(exportingFormat || importingFormat);
 
   const fetchStudents = useCallback(
     async ({
@@ -330,6 +731,19 @@ export function StudentRecords({ navigationIntent, clearNavigationIntent, onNavi
 
     clearNavigationIntent?.();
   }, [navigationIntent, clearNavigationIntent, fetchStudentDetails]);
+
+  useEffect(() => {
+    const handleOutsideClick = (event) => {
+      if (actionMenuRef.current && !actionMenuRef.current.contains(event.target)) {
+        setOpenActionMenu('');
+      }
+    };
+
+    document.addEventListener('mousedown', handleOutsideClick);
+    return () => {
+      document.removeEventListener('mousedown', handleOutsideClick);
+    };
+  }, []);
 
   const refreshCurrentView = useCallback(async () => {
     await fetchStudents({
@@ -447,6 +861,286 @@ export function StudentRecords({ navigationIntent, clearNavigationIntent, onNavi
     setSkillQuery('');
     setActivityQuery('');
     setAffiliationQuery('');
+  };
+
+  const getValidatedStudentExportRows = () => {
+    const rows = [];
+    let skippedCount = 0;
+
+    students.forEach((student) => {
+      const isValid = STUDENT_REQUIRED_KEYS.every((requiredKey) => sanitizeValue(student[requiredKey]));
+      if (!isValid) {
+        skippedCount += 1;
+        return;
+      }
+
+      const row = {};
+      STUDENT_EXPORT_COLUMNS.forEach((column) => {
+        row[column.label] = sanitizeValue(student[column.key]);
+      });
+      rows.push(row);
+    });
+
+    return { rows, skippedCount };
+  };
+
+  const canExportRows = (count) => {
+    if (count > 0) {
+      return true;
+    }
+    showError(
+      'No rows exported',
+      'Every row is missing at least one required field (Student ID, First Name, Last Name, Course, Year Level).',
+    );
+    return false;
+  };
+
+  const showExportSummary = (rowsCount, skippedCount, formatLabel) => {
+    if (skippedCount > 0) {
+      showSuccess(
+        `${formatLabel} exported`,
+        `${rowsCount} row(s) exported. ${skippedCount} row(s) skipped due to missing required fields.`,
+      );
+      return;
+    }
+    showSuccess(`${formatLabel} exported`, `${rowsCount} row(s) exported successfully.`);
+  };
+
+  const exportStudentsAsExcel = async () => {
+    const { rows, skippedCount } = getValidatedStudentExportRows();
+    if (!canExportRows(rows.length)) return;
+
+    setExportingFormat('excel');
+    try {
+      const XLSX = await import('xlsx');
+      const worksheet = XLSX.utils.json_to_sheet(rows, {
+        header: STUDENT_EXPORT_COLUMNS.map((column) => column.label),
+      });
+      const workbook = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(workbook, worksheet, 'Students');
+      XLSX.writeFile(workbook, `students-${new Date().toISOString().slice(0, 10)}.xlsx`);
+      showExportSummary(rows.length, skippedCount, 'Excel');
+    } catch (error) {
+      showError('Excel export failed', error.message || 'Unable to export Excel file.');
+    } finally {
+      setExportingFormat('');
+    }
+  };
+
+  const exportStudentsAsImage = async () => {
+    const { rows, skippedCount } = getValidatedStudentExportRows();
+    if (!canExportRows(rows.length)) return;
+
+    setExportingFormat('image');
+    try {
+      const canvas = buildStudentCanvasTable(rows);
+      const dataUrl = canvas.toDataURL('image/png');
+      const link = document.createElement('a');
+      link.href = dataUrl;
+      link.download = `students-${new Date().toISOString().slice(0, 10)}.png`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      showExportSummary(rows.length, skippedCount, 'Image');
+    } catch (error) {
+      showError('Image export failed', error.message || 'Unable to export image file.');
+    } finally {
+      setExportingFormat('');
+    }
+  };
+
+  const exportStudentsAsPdf = async () => {
+    const { rows, skippedCount } = getValidatedStudentExportRows();
+    if (!canExportRows(rows.length)) return;
+
+    setExportingFormat('pdf');
+    try {
+      const { jsPDF } = await import('jspdf');
+      const canvas = buildStudentCanvasTable(rows);
+      const imageData = canvas.toDataURL('image/png');
+
+      const pdf = new jsPDF({ orientation: 'landscape', unit: 'pt', format: 'a4' });
+      const pageWidth = pdf.internal.pageSize.getWidth();
+      const pageHeight = pdf.internal.pageSize.getHeight();
+      const margin = 24;
+      const renderWidth = pageWidth - (margin * 2);
+      const renderHeight = (canvas.height * renderWidth) / canvas.width;
+      const printableHeight = pageHeight - (margin * 2);
+
+      let heightLeft = renderHeight;
+      let positionY = margin;
+      pdf.addImage(imageData, 'PNG', margin, positionY, renderWidth, renderHeight);
+      heightLeft -= printableHeight;
+
+      while (heightLeft > 0) {
+        positionY = margin - (renderHeight - heightLeft);
+        pdf.addPage();
+        pdf.addImage(imageData, 'PNG', margin, positionY, renderWidth, renderHeight);
+        heightLeft -= printableHeight;
+      }
+
+      pdf.save(`students-${new Date().toISOString().slice(0, 10)}.pdf`);
+      showExportSummary(rows.length, skippedCount, 'PDF');
+    } catch (error) {
+      showError('PDF export failed', error.message || 'Unable to export PDF file.');
+    } finally {
+      setExportingFormat('');
+    }
+  };
+
+  const handleChooseExportType = async (typeKey) => {
+    if (isProcessingFile) return;
+    setOpenActionMenu('');
+
+    if (typeKey === 'excel') {
+      await exportStudentsAsExcel();
+      return;
+    }
+    if (typeKey === 'pdf') {
+      await exportStudentsAsPdf();
+      return;
+    }
+    await exportStudentsAsImage();
+  };
+
+  const parseExcelImportFile = async (file) => {
+    const XLSX = await import('xlsx');
+    const rawBuffer = await file.arrayBuffer();
+    const workbook = XLSX.read(rawBuffer, { type: 'array', raw: false });
+    const firstSheetName = workbook.SheetNames[0];
+    const firstSheet = workbook.Sheets[firstSheetName];
+    if (!firstSheet) return [];
+
+    const matrix = XLSX.utils.sheet_to_json(firstSheet, { header: 1, defval: '', raw: false });
+    const { objects, headerScore } = convertMatrixToObjects(matrix);
+    if (objects.length === 0) return [];
+
+    const payloads = objects.map(toStudentPayload);
+    const hasRequiredData = payloads.some((payload) =>
+      STUDENT_REQUIRED_KEYS.every((requiredKey) => sanitizeValue(payload[requiredKey])),
+    );
+    if (!hasRequiredData && headerScore < 2) {
+      throw new Error(
+        'Could not detect student columns. Check headers like Student ID, First Name, Last Name, Course, Year Level.',
+      );
+    }
+    return payloads;
+  };
+
+  const parsePdfImportFile = async (file) => {
+    const pdfjs = await import('pdfjs-dist/legacy/build/pdf.mjs');
+    const rawBuffer = await file.arrayBuffer();
+    const task = pdfjs.getDocument({ data: new Uint8Array(rawBuffer), disableWorker: true });
+    const pdf = await task.promise;
+
+    let aggregatedText = '';
+    for (let pageNumber = 1; pageNumber <= pdf.numPages; pageNumber += 1) {
+      const page = await pdf.getPage(pageNumber);
+      const content = await page.getTextContent();
+      const pageText = content.items.map((item) => sanitizeValue(item.str)).join(' ');
+      aggregatedText += `${pageText}\n`;
+    }
+
+    return extractRowsFromText(aggregatedText).map(toStudentPayload);
+  };
+
+  const parseImageImportFile = async (file) => {
+    const { createWorker } = await import('tesseract.js');
+    const worker = await createWorker('eng');
+    try {
+      const {
+        data: { text },
+      } = await worker.recognize(file);
+      return extractRowsFromText(text).map(toStudentPayload);
+    } finally {
+      await worker.terminate();
+    }
+  };
+
+  const handleChooseImportType = (typeKey) => {
+    if (isProcessingFile) return;
+    pendingImportTypeRef.current = typeKey;
+    setPendingImportType(typeKey);
+    setOpenActionMenu('');
+
+    if (fileInputRef.current) {
+      const selected = FILE_TYPE_OPTIONS.find((option) => option.key === typeKey);
+      if (selected) fileInputRef.current.setAttribute('accept', selected.accept);
+      fileInputRef.current.value = '';
+      setTimeout(() => fileInputRef.current?.click(), 0);
+    }
+  };
+
+  const handleImportFileChange = async (event) => {
+    const selectedFile = event.target.files?.[0];
+    if (!selectedFile) return;
+
+    const importType = pendingImportTypeRef.current;
+    setImportingFormat(importType);
+    try {
+      let payloads = [];
+      if (importType === 'excel') {
+        payloads = await parseExcelImportFile(selectedFile);
+      } else if (importType === 'pdf') {
+        payloads = await parsePdfImportFile(selectedFile);
+      } else {
+        payloads = await parseImageImportFile(selectedFile);
+      }
+
+      if (payloads.length === 0) {
+        showError('Import failed', 'No student rows were detected in the selected file.');
+        return;
+      }
+
+      const validPayloads = [];
+      let skippedRequired = 0;
+      payloads.forEach((payload) => {
+        const hasRequired = STUDENT_REQUIRED_KEYS.every((requiredKey) => sanitizeValue(payload[requiredKey]));
+        if (!hasRequired) {
+          skippedRequired += 1;
+          return;
+        }
+        validPayloads.push(payload);
+      });
+
+      if (validPayloads.length === 0) {
+        showError(
+          'Import failed',
+          'All detected rows are missing required fields (Student ID, First Name, Last Name, Course, Year Level).',
+        );
+        return;
+      }
+
+      let createdCount = 0;
+      let failedCount = 0;
+      let firstFailure = '';
+
+      for (const payload of validPayloads) {
+        try {
+          await apiRequest('/api/students', { method: 'POST', body: payload });
+          createdCount += 1;
+        } catch (error) {
+          failedCount += 1;
+          if (!firstFailure) firstFailure = error.message || 'Unknown import error';
+        }
+      }
+
+      await refreshCurrentView();
+
+      if (createdCount > 0) {
+        const parts = [`${createdCount} row(s) imported`];
+        if (skippedRequired > 0) parts.push(`${skippedRequired} row(s) skipped for missing required fields`);
+        if (failedCount > 0) parts.push(`${failedCount} row(s) failed to save`);
+        showSuccess('Import completed', `${parts.join(', ')}.`);
+      } else {
+        showError('Import failed', firstFailure || 'No rows were imported.');
+      }
+    } catch (error) {
+      showError('Import failed', error.message || 'Unable to import file.');
+    } finally {
+      setImportingFormat('');
+      event.target.value = '';
+    }
   };
 
   const handleSelectStudent = async (studentId) => {
@@ -1093,6 +1787,9 @@ export function StudentRecords({ navigationIntent, clearNavigationIntent, onNavi
     );
   };
 
+  const importAccept =
+    FILE_TYPE_OPTIONS.find((option) => option.key === pendingImportType)?.accept || '.xlsx,.xls,.csv';
+
   return (
     <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
       <section className="rounded-[32px] border border-slate-200 bg-white p-6 shadow-sm">
@@ -1123,14 +1820,84 @@ export function StudentRecords({ navigationIntent, clearNavigationIntent, onNavi
             </div>
           </div>
 
-          <button
-            type="button"
-            onClick={openAddStudentModal}
-            className="inline-flex items-center justify-center gap-2 rounded-2xl bg-orange-600 px-5 py-3 text-sm font-bold text-white transition-colors hover:bg-orange-700"
-          >
-            <Plus size={18} />
-            Add Student
-          </button>
+          <div ref={actionMenuRef} className="flex flex-wrap items-center gap-2">
+            <div className="relative">
+              <button
+                type="button"
+                onClick={() => setOpenActionMenu(openActionMenu === 'import' ? '' : 'import')}
+                disabled={isProcessingFile}
+                className="inline-flex items-center justify-center gap-2 rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm font-bold text-slate-700 transition-colors hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                <Upload size={16} />
+                {importingFormat ? `Importing ${importingFormat}...` : 'Import'}
+              </button>
+              {openActionMenu === 'import' ? (
+                <div className="absolute right-0 z-20 mt-2 w-44 rounded-xl border border-gray-200 bg-white p-1 shadow-lg">
+                  {FILE_TYPE_OPTIONS.map((option) => {
+                    const Icon = option.icon;
+                    return (
+                      <button
+                        key={`import-${option.key}`}
+                        type="button"
+                        onClick={() => handleChooseImportType(option.key)}
+                        className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm font-medium text-gray-700 hover:bg-gray-50"
+                      >
+                        <Icon size={15} />
+                        {option.label}
+                      </button>
+                    );
+                  })}
+                </div>
+              ) : null}
+            </div>
+
+            <div className="relative">
+              <button
+                type="button"
+                onClick={() => setOpenActionMenu(openActionMenu === 'export' ? '' : 'export')}
+                disabled={isProcessingFile}
+                className="inline-flex items-center justify-center gap-2 rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm font-bold text-slate-700 transition-colors hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                <Download size={16} />
+                {exportingFormat ? `Exporting ${exportingFormat}...` : 'Export'}
+              </button>
+              {openActionMenu === 'export' ? (
+                <div className="absolute right-0 z-20 mt-2 w-44 rounded-xl border border-gray-200 bg-white p-1 shadow-lg">
+                  {FILE_TYPE_OPTIONS.map((option) => {
+                    const Icon = option.icon;
+                    return (
+                      <button
+                        key={`export-${option.key}`}
+                        type="button"
+                        onClick={() => handleChooseExportType(option.key)}
+                        className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm font-medium text-gray-700 hover:bg-gray-50"
+                      >
+                        <Icon size={15} />
+                        {option.label}
+                      </button>
+                    );
+                  })}
+                </div>
+              ) : null}
+            </div>
+
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept={importAccept}
+              onChange={handleImportFileChange}
+              className="hidden"
+            />
+
+            <button
+              type="button"
+              onClick={openAddStudentModal}
+              className="inline-flex items-center justify-center gap-2 rounded-2xl bg-orange-600 px-5 py-3 text-sm font-bold text-white transition-colors hover:bg-orange-700"
+            >
+              <Plus size={18} />
+              Add Student
+            </button>
+          </div>
         </div>
 
         <div className="mt-6 grid gap-3 md:grid-cols-2 xl:grid-cols-3">

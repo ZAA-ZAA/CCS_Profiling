@@ -1,5 +1,6 @@
 from flask import Blueprint, request, jsonify
 from audit import log_audit_event
+from authz import require_roles
 from models import db, Curriculum
 import json
 
@@ -154,6 +155,7 @@ def update_curriculum(curriculum_id):
         }), 500
 
 @curriculum_bp.route('/<int:curriculum_id>', methods=['DELETE'])
+@require_roles(['DEAN'])
 def delete_curriculum(curriculum_id):
     """Delete a curriculum"""
     try:

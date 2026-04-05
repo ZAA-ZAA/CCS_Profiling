@@ -1,5 +1,6 @@
 from flask import Blueprint, request, jsonify
 from audit import log_audit_event
+from authz import require_roles
 from models import db, Syllabus
 import json
 
@@ -175,6 +176,7 @@ def update_syllabus(syllabus_id):
         }), 500
 
 @syllabus_bp.route('/<int:syllabus_id>', methods=['DELETE'])
+@require_roles(['DEAN'])
 def delete_syllabus(syllabus_id):
     """Delete a syllabus"""
     try:

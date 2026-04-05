@@ -1,5 +1,6 @@
 from flask import Blueprint, request, jsonify
 from audit import log_audit_event
+from authz import require_roles
 from models import db, Report
 from datetime import datetime
 
@@ -191,6 +192,7 @@ def update_report(report_id):
         }), 500
 
 @reports_bp.route('/<int:report_id>', methods=['DELETE'])
+@require_roles(['DEAN'])
 def delete_report(report_id):
     """Delete a report"""
     try:

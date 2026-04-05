@@ -12,11 +12,11 @@ import {
   Users,
 } from 'lucide-react';
 import { FacultyForm } from './FacultyForm';
-import { ModalShell } from './ui/ModalShell';
-import { useUI } from './ui/UIProvider';
-import { apiRequest } from '../lib/api';
-import { CORE_COURSES } from '../lib/formOptions';
-import { formatFacultyLabel, getInitials, matchesFacultyAssignment } from '../lib/display';
+import { ModalShell } from '../ui/ModalShell';
+import { useUI } from '../ui/UIProvider';
+import { apiRequest } from '../../lib/api';
+import { CORE_COURSES } from '../../lib/formOptions';
+import { formatFacultyLabel, getInitials, matchesFacultyAssignment } from '../../lib/display';
 
 function calculateYearsOfService(startDate) {
   if (!startDate) return 0;

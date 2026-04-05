@@ -1,10 +1,12 @@
 from flask import Blueprint, request, jsonify
 from models import db, AuditLog
 from datetime import datetime, timedelta
+from authz import require_roles
 
 audit_logs_bp = Blueprint('audit_logs', __name__, url_prefix='/api/audit-logs')
 
 @audit_logs_bp.route('', methods=['GET'])
+@require_roles(['DEAN'])
 def get_audit_logs():
     """Get audit logs with optional filtering"""
     try:
@@ -60,6 +62,7 @@ def get_audit_logs():
         }), 500
 
 @audit_logs_bp.route('/stats', methods=['GET'])
+@require_roles(['DEAN'])
 def get_audit_stats():
     """Get audit log statistics"""
     try:

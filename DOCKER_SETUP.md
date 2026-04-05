@@ -6,7 +6,7 @@
 
 - `frontend` on port `3000`
 - `backend` on port `5000`
-- `mysql` on port `3306`
+- `mongodb` on port `27017`
 
 ## Start the Stack
 
@@ -43,13 +43,13 @@ Specific service logs:
 ```bash
 docker-compose logs -f frontend
 docker-compose logs -f backend
-docker-compose logs -f mysql
+docker-compose logs -f mongodb
 ```
 
 ## Docker Notes
 
 - Frontend expects the backend at `http://localhost:5000`
-- Backend uses the MySQL container defined in `docker-compose.yml`
+- Backend uses the MongoDB container defined in `docker-compose.yml`
 - Run `python init_db.py` inside the backend container or locally after the stack starts to seed demo data
 
 ## Seed Demo Data in Docker
