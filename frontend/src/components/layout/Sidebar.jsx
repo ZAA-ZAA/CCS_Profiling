@@ -142,7 +142,11 @@ export const Sidebar = ({ role, activeTab, setActiveTab, onLogout, open = true, 
             </div>
           </div>
         </div>
-        
+        <div className="mt-4 flex items-center justify-between rounded-xl border border-gray-100 bg-white px-3 py-2 text-xs font-medium text-gray-500">
+          <span>System Version</span>
+          <span className="rounded-full bg-orange-50 px-2 py-1 font-bold text-orange-600">v2.13</span>
+        </div>
+
         <button 
           onClick={() => {
             onLogout?.();
@@ -171,3 +175,7 @@ export const Sidebar = ({ role, activeTab, setActiveTab, onLogout, open = true, 
     </>
   );
 };
+
+
+
+
