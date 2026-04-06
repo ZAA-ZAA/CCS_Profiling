@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useNavigate, useParams } from 'react-router-dom';
 import {
   Download,
   Edit3,
@@ -586,6 +587,8 @@ function ItemActionButtons({ onEdit, onDelete }) {
 }
 
 export function StudentRecords({ navigationIntent, clearNavigationIntent, onNavigate }) {
+  const navigate = useNavigate();
+  const { id: routeStudentId } = useParams();
   const { showError, showSuccess, showInfo, confirm } = useUI();
   const [students, setStudents] = useState([]);
   const [selectedStudent, setSelectedStudent] = useState(null);
@@ -726,11 +729,24 @@ export function StudentRecords({ navigationIntent, clearNavigationIntent, onNavi
     if (Object.prototype.hasOwnProperty.call(context, 'affiliation')) setAffiliationQuery(context.affiliation || '');
 
     if (context.studentId) {
-      fetchStudentDetails(context.studentId);
+      navigate('/users/' + context.studentId);
     }
 
     clearNavigationIntent?.();
-  }, [navigationIntent, clearNavigationIntent, fetchStudentDetails]);
+  }, [navigationIntent, clearNavigationIntent, navigate]);
+
+  useEffect(() => {
+    if (!routeStudentId) {
+      setSelectedStudent(null);
+      return;
+    }
+
+    if (String(selectedStudent?.id) === String(routeStudentId)) {
+      return;
+    }
+
+    fetchStudentDetails(routeStudentId);
+  }, [fetchStudentDetails, routeStudentId, selectedStudent?.id]);
 
   useEffect(() => {
     const handleOutsideClick = (event) => {
@@ -1145,6 +1161,7 @@ export function StudentRecords({ navigationIntent, clearNavigationIntent, onNavi
 
   const handleSelectStudent = async (studentId) => {
     await fetchStudentDetails(studentId);
+    navigate('/users/' + studentId);
   };
 
   const openAddStudentModal = () => {
@@ -1178,6 +1195,7 @@ export function StudentRecords({ navigationIntent, clearNavigationIntent, onNavi
       setFormData(defaultStudentForm);
       await refreshCurrentView();
       await fetchStudentDetails(response.data.id);
+      navigate('/users/' + response.data.id);
       showSuccess('Student profile added', 'The new student is now part of the searchable list.');
     } catch (error) {
       showError('Unable to add student', error.message);
@@ -2110,7 +2128,10 @@ export function StudentRecords({ navigationIntent, clearNavigationIntent, onNavi
 
       {selectedStudent && !showEditModal ? (
         <ModalShell
-          onClose={() => setSelectedStudent(null)}
+          onClose={() => {
+            setSelectedStudent(null);
+            navigate('/users');
+          }}
           title="Student Profile"
           description="Comprehensive student information with linked schedules, instructions, activities, and event participation."
           size="max-w-7xl"
@@ -2500,3 +2521,7 @@ export function StudentRecords({ navigationIntent, clearNavigationIntent, onNavi
     </div>
   );
 }
+
+
+
+

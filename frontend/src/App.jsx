@@ -27,11 +27,20 @@ const ROUTES = {
   audit: { path: '/audit-logs', title: 'Audit Logs' },
 };
 
-const PATH_TO_TAB = Object.fromEntries(
-  Object.entries(ROUTES).map(([tab, config]) => [config.path, tab]),
-);
+function getTabFromPath(pathname) {
+  if (pathname === ROUTES.students.path || pathname.startsWith(`${ROUTES.students.path}/`)) {
+    return 'students';
+  }
 
-function getPathForTab(tab) {
+  const matched = Object.entries(ROUTES).find(([, config]) => config.path === pathname);
+  return matched?.[0] || 'dashboard';
+}
+
+function getPathForTab(tab, context = null) {
+  if (tab === 'students' && context?.studentId) {
+    return `${ROUTES.students.path}/${context.studentId}`;
+  }
+
   return ROUTES[tab]?.path || ROUTES.dashboard.path;
 }
 
@@ -48,7 +57,7 @@ function AppShell() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const { showError } = useUI();
 
-  const activeTab = PATH_TO_TAB[location.pathname] || 'dashboard';
+  const activeTab = getTabFromPath(location.pathname);
   const pageTitle = ROUTES[activeTab]?.title || 'Dashboard';
 
   useEffect(() => {
@@ -75,7 +84,7 @@ function AppShell() {
       timestamp: Date.now(),
     });
 
-    const nextPath = getPathForTab(tab);
+    const nextPath = getPathForTab(tab, context);
     if (location.pathname !== nextPath) {
       navigate(nextPath);
     }
@@ -169,6 +178,16 @@ function AppShell() {
             <Route path={ROUTES.dashboard.path} element={<Dashboard onNavigate={handleNavigate} />} />
             <Route
               path={ROUTES.students.path}
+              element={
+                <StudentRecords
+                  navigationIntent={navigationIntent}
+                  clearNavigationIntent={clearNavigationIntent}
+                  onNavigate={handleNavigate}
+                />
+              }
+            />
+            <Route
+              path={`${ROUTES.students.path}/:id`}
               element={
                 <StudentRecords
                   navigationIntent={navigationIntent}
