@@ -19,6 +19,7 @@ import {
   Users,
 } from 'lucide-react';
 import { StudentForm } from './StudentForm';
+import { StudentListRow } from './StudentListRow';
 import { ModalShell } from '../ui/ModalShell';
 import { useUI } from '../ui/UIProvider';
 import { apiRequest } from '../../lib/api';
@@ -2521,6 +2522,7 @@ export function StudentRecords({ navigationIntent, clearNavigationIntent, onNavi
     </div>
   );
 }
+
 
 
 
