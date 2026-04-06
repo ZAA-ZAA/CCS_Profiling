@@ -1,4 +1,5 @@
-import React, { useState, useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
+import { Navigate, Route, Routes, useLocation, useNavigate } from 'react-router-dom';
 import { Login } from './components/auth/Login';
 import { Register } from './components/auth/Register';
 import { Sidebar } from './components/layout/Sidebar';
@@ -15,25 +16,31 @@ import { apiRequest } from './lib/api';
 import { UIProvider, useUI } from './components/ui/UIProvider';
 import { AccountSettingsModal } from './components/account/AccountSettingsModal';
 
-function AppShell() {
-  const pageTitles = {
-    dashboard: 'Dashboard',
-    students: 'Student Profile',
-    faculty: 'Faculty Profile',
-    scheduling: 'Scheduling',
-    research: 'College Research',
-    instructions: 'Instructions',
-    reports: 'Events',
-    audit: 'Audit Logs',
-  };
+const ROUTES = {
+  dashboard: { path: '/dashboard', title: 'Dashboard' },
+  students: { path: '/users', title: 'Student Profile' },
+  faculty: { path: '/faculty', title: 'Faculty Profile' },
+  scheduling: { path: '/scheduling', title: 'Scheduling' },
+  research: { path: '/research', title: 'College Research' },
+  instructions: { path: '/instructions', title: 'Instructions' },
+  reports: { path: '/reports', title: 'Events' },
+  audit: { path: '/audit-logs', title: 'Audit Logs' },
+};
 
-  // Load user from localStorage on mount
+const PATH_TO_TAB = Object.fromEntries(
+  Object.entries(ROUTES).map(([tab, config]) => [config.path, tab]),
+);
+
+function getPathForTab(tab) {
+  return ROUTES[tab]?.path || ROUTES.dashboard.path;
+}
+
+function AppShell() {
+  const location = useLocation();
+  const navigate = useNavigate();
   const [user, setUser] = useState(() => {
     const savedUser = localStorage.getItem('user');
     return savedUser ? JSON.parse(savedUser) : null;
-  });
-  const [activeTab, setActiveTab] = useState(() => {
-    return localStorage.getItem('activeTab') || 'dashboard';
   });
   const [showRegister, setShowRegister] = useState(false);
   const [navigationIntent, setNavigationIntent] = useState(null);
@@ -41,7 +48,9 @@ function AppShell() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const { showError } = useUI();
 
-  // Save user to localStorage whenever it changes
+  const activeTab = PATH_TO_TAB[location.pathname] || 'dashboard';
+  const pageTitle = ROUTES[activeTab]?.title || 'Dashboard';
+
   useEffect(() => {
     if (user) {
       localStorage.setItem('user', JSON.stringify(user));
@@ -50,12 +59,6 @@ function AppShell() {
     }
   }, [user]);
 
-  // Save activeTab to localStorage
-  useEffect(() => {
-    localStorage.setItem('activeTab', activeTab);
-  }, [activeTab]);
-
-  // Prevent background scrolling when mobile drawer is open
   useEffect(() => {
     if (!sidebarOpen) return;
     const prevOverflow = document.body.style.overflow;
@@ -65,96 +68,52 @@ function AppShell() {
     };
   }, [sidebarOpen]);
 
-  if (!user) {
-    if (showRegister) {
-      return (
-        <Register 
-          onRegisterSuccess={() => setShowRegister(false)}
-          onSwitchToLogin={() => setShowRegister(false)}
-        />
-      );
-    }
-    return <Login onLogin={(userData) => setUser(userData)} onSwitchToRegister={() => setShowRegister(true)} />;
-  }
-
   const handleNavigate = (tab, context = null) => {
-    setActiveTab(tab);
     setNavigationIntent({
       tab,
       context,
       timestamp: Date.now(),
     });
+
+    const nextPath = getPathForTab(tab);
+    if (location.pathname !== nextPath) {
+      navigate(nextPath);
+    }
   };
 
   const clearNavigationIntent = () => {
     setNavigationIntent(null);
   };
 
-  const renderContent = () => {
-    switch (activeTab) {
-      case 'dashboard':
-        return <Dashboard onNavigate={handleNavigate} />;
-      case 'students':
-        return (
-          <StudentRecords
-            navigationIntent={navigationIntent}
-            clearNavigationIntent={clearNavigationIntent}
-            onNavigate={handleNavigate}
-          />
-        );
-      case 'faculty':
-        return (
-          <FacultyRecords
-            navigationIntent={navigationIntent}
-            clearNavigationIntent={clearNavigationIntent}
-            onNavigate={handleNavigate}
-          />
-        );
-      case 'scheduling':
-        return (
-          <Scheduling
-            navigationIntent={navigationIntent}
-            clearNavigationIntent={clearNavigationIntent}
-            onNavigate={handleNavigate}
-          />
-        );
-      case 'research':
-        return <CollegeResearch />;
-      case 'instructions':
-        return (
-          <Instructions
-            navigationIntent={navigationIntent}
-            clearNavigationIntent={clearNavigationIntent}
-          />
-        );
-      case 'reports':
-        return (
-          <OrgEventsReports
-            navigationIntent={navigationIntent}
-            clearNavigationIntent={clearNavigationIntent}
-            onNavigate={handleNavigate}
-          />
-        );
-      case 'audit':
-        return <AuditLogs />;
-      default:
-        return (
-          <div className="flex items-center justify-center h-full text-gray-400">
-            <div className="text-center">
-              <h2 className="text-2xl font-bold mb-2">Module Under Construction</h2>
-              <p>The {activeTab} module is currently being developed.</p>
-            </div>
-          </div>
-        );
+  if (!user) {
+    if (showRegister) {
+      return (
+        <Register
+          onRegisterSuccess={() => setShowRegister(false)}
+          onSwitchToLogin={() => setShowRegister(false)}
+        />
+      );
     }
-  };
+
+    return (
+      <Login
+        onLogin={(userData) => {
+          setUser(userData);
+          if (location.pathname === '/') {
+            navigate(ROUTES.dashboard.path, { replace: true });
+          }
+        }}
+        onSwitchToRegister={() => setShowRegister(true)}
+      />
+    );
+  }
 
   return (
     <div className="flex h-dvh overflow-hidden bg-gray-50 font-sans text-gray-900">
-      <Sidebar 
-        role={user.role || 'FACULTY'} 
-        activeTab={activeTab} 
-        setActiveTab={setActiveTab} 
+      <Sidebar
+        role={user.role || 'FACULTY'}
+        activeTab={activeTab}
+        setActiveTab={handleNavigate}
         open={sidebarOpen}
         onClose={() => setSidebarOpen(false)}
         onLogout={async () => {
@@ -165,20 +124,19 @@ function AppShell() {
                 username: user?.username,
                 email: user?.email,
                 tenant_id: user?.tenant_id,
-              }
+              },
             });
           } catch (error) {
             showError('Logout sync failed', error.message);
           } finally {
             setUser(null);
             localStorage.removeItem('user');
-            localStorage.removeItem('activeTab');
+            navigate('/', { replace: true });
           }
         }}
       />
-      
+
       <main className="flex min-w-0 flex-1 flex-col overflow-hidden">
-        {/* Header */}
         <header className="h-16 sm:h-20 bg-white border-b border-gray-100 flex items-center justify-between px-4 sm:px-8 sticky top-0 z-10">
           <div className="flex min-w-0 items-center gap-3">
             <button
@@ -189,11 +147,9 @@ function AppShell() {
             >
               <Menu size={18} />
             </button>
-            <h2 className="truncate text-base sm:text-xl font-bold text-gray-900">
-              {pageTitles[activeTab] || activeTab.replace('-', ' ')}
-            </h2>
+            <h2 className="truncate text-base sm:text-xl font-bold text-gray-900">{pageTitle}</h2>
           </div>
-          
+
           <button
             type="button"
             onClick={() => setShowAccountSettings(true)}
@@ -207,9 +163,63 @@ function AppShell() {
           </button>
         </header>
 
-        {/* Content Area */}
         <div className="min-w-0 flex-1 overflow-auto p-4 sm:p-8">
-          {renderContent()}
+          <Routes>
+            <Route path="/" element={<Navigate to={ROUTES.dashboard.path} replace />} />
+            <Route path={ROUTES.dashboard.path} element={<Dashboard onNavigate={handleNavigate} />} />
+            <Route
+              path={ROUTES.students.path}
+              element={
+                <StudentRecords
+                  navigationIntent={navigationIntent}
+                  clearNavigationIntent={clearNavigationIntent}
+                  onNavigate={handleNavigate}
+                />
+              }
+            />
+            <Route
+              path={ROUTES.faculty.path}
+              element={
+                <FacultyRecords
+                  navigationIntent={navigationIntent}
+                  clearNavigationIntent={clearNavigationIntent}
+                  onNavigate={handleNavigate}
+                />
+              }
+            />
+            <Route
+              path={ROUTES.scheduling.path}
+              element={
+                <Scheduling
+                  navigationIntent={navigationIntent}
+                  clearNavigationIntent={clearNavigationIntent}
+                  onNavigate={handleNavigate}
+                />
+              }
+            />
+            <Route path={ROUTES.research.path} element={<CollegeResearch />} />
+            <Route
+              path={ROUTES.instructions.path}
+              element={
+                <Instructions
+                  navigationIntent={navigationIntent}
+                  clearNavigationIntent={clearNavigationIntent}
+                />
+              }
+            />
+            <Route
+              path={ROUTES.reports.path}
+              element={
+                <OrgEventsReports
+                  navigationIntent={navigationIntent}
+                  clearNavigationIntent={clearNavigationIntent}
+                  onNavigate={handleNavigate}
+                />
+              }
+            />
+            <Route path={ROUTES.audit.path} element={<AuditLogs />} />
+            <Route path="*" element={<Navigate to={ROUTES.dashboard.path} replace />} />
+          </Routes>
         </div>
       </main>
 
