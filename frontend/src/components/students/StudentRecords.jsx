@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+﻿import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import {
   Download,
@@ -11,7 +11,6 @@ import {
   Mail,
   Phone,
   Plus,
-  Search,
   ShieldAlert,
   Sparkles,
   Trash2,
@@ -20,6 +19,7 @@ import {
 } from 'lucide-react';
 import { StudentForm } from './StudentForm';
 import { StudentListRow } from './StudentListRow';
+import { StudentSearchBar } from './StudentSearchBar';
 import { ModalShell } from '../ui/ModalShell';
 import { useUI } from '../ui/UIProvider';
 import { apiRequest } from '../../lib/api';
@@ -1920,16 +1920,7 @@ export function StudentRecords({ navigationIntent, clearNavigationIntent, onNavi
         </div>
 
         <div className="mt-6 grid gap-3 md:grid-cols-2 xl:grid-cols-3">
-          <label className="relative block xl:col-span-1">
-            <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
-            <input
-              type="text"
-              placeholder="Search name, student ID, or email..."
-              className="w-full rounded-2xl border border-slate-200 bg-slate-50 py-3 pl-11 pr-4 text-sm outline-none transition focus:border-orange-200 focus:bg-white focus:ring-2 focus:ring-orange-200"
-              value={searchTerm}
-              onChange={(event) => setSearchTerm(event.target.value)}
-            />
-          </label>
+          <StudentSearchBar value={searchTerm} onChange={setSearchTerm} />
 
           <select
             className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm font-medium outline-none transition focus:border-orange-200 focus:bg-white focus:ring-2 focus:ring-orange-200"
@@ -2224,7 +2215,7 @@ export function StudentRecords({ navigationIntent, clearNavigationIntent, onNavi
                             <div className="flex items-start justify-between gap-3">
                               <div>
                                 <p className="text-sm font-bold text-slate-900">
-                                  {record.course || selectedStudent.course} • {record.academic_year || 'Academic year not set'}
+                                  {record.course || selectedStudent.course} â€¢ {record.academic_year || 'Academic year not set'}
                                 </p>
                                 <p className="mt-1 text-sm text-slate-600">
                                   {details?.school_name || 'School not specified'}
@@ -2353,15 +2344,15 @@ export function StudentRecords({ navigationIntent, clearNavigationIntent, onNavi
                           className="w-full rounded-3xl border border-slate-200 bg-slate-50 p-4 text-left transition-colors hover:border-orange-200 hover:bg-orange-50"
                         >
                           <p className="text-sm font-bold text-slate-900">{schedule.subject}</p>
-                          <p className="mt-1 text-sm text-slate-500">{schedule.day} • {schedule.time}</p>
+                          <p className="mt-1 text-sm text-slate-500">{schedule.day} â€¢ {schedule.time}</p>
                           <p className="mt-2 text-xs font-semibold uppercase tracking-[0.16em] text-slate-400">
-                            {schedule.instructor} • {schedule.room}
+                            {schedule.instructor} â€¢ {schedule.room}
                           </p>
                         </button>
                       ))}
                     </div>
                   ) : (
-                    <p className="text-sm text-slate-500">No schedule currently matches this student’s course and year level.</p>
+                    <p className="text-sm text-slate-500">No schedule currently matches this studentâ€™s course and year level.</p>
                   )}
                 </DetailSectionCard>
 
@@ -2374,7 +2365,7 @@ export function StudentRecords({ navigationIntent, clearNavigationIntent, onNavi
                       </p>
                       <p className="mt-1 text-sm text-slate-500">
                         {selectedStudentCurriculum
-                          ? `${selectedStudentCurriculum.totalUnits} total units • ${selectedStudentCurriculum.year}`
+                          ? `${selectedStudentCurriculum.totalUnits} total units â€¢ ${selectedStudentCurriculum.year}`
                           : 'Add or align curriculum data for this course to show the full program path.'}
                       </p>
                     </div>
@@ -2394,8 +2385,8 @@ export function StudentRecords({ navigationIntent, clearNavigationIntent, onNavi
                             onClick={() => onNavigate?.('instructions', { type: 'syllabus', syllabusId: syllabus.id, course: selectedStudent.course })}
                             className="w-full rounded-2xl bg-white px-3 py-3 text-left transition-colors hover:bg-orange-50"
                           >
-                            <p className="text-sm font-bold text-slate-900">{syllabus.code} • {syllabus.subject}</p>
-                            <p className="mt-1 text-xs text-slate-500">{syllabus.semester} • {syllabus.instructor}</p>
+                            <p className="text-sm font-bold text-slate-900">{syllabus.code} â€¢ {syllabus.subject}</p>
+                            <p className="mt-1 text-xs text-slate-500">{syllabus.semester} â€¢ {syllabus.instructor}</p>
                           </button>
                         ))}
                         {selectedStudentSyllabi.length === 0 ? (
@@ -2408,13 +2399,13 @@ export function StudentRecords({ navigationIntent, clearNavigationIntent, onNavi
                       <p className="text-xs font-bold uppercase tracking-[0.16em] text-slate-400">Lesson plans</p>
                       <p className="mt-2 text-sm font-bold text-slate-900">{selectedStudentLessons.length} lesson(s) connected</p>
                       <p className="mt-1 text-sm text-slate-500">
-                        Lessons are matched from the linked syllabus set for this student’s current course flow.
+                        Lessons are matched from the linked syllabus set for this studentâ€™s current course flow.
                       </p>
                     </div>
                   </div>
                 </DetailSectionCard>
 
-                <DetailSectionCard title="Affiliated Events" subtitle="Events are suggested from the student’s organization affiliations.">
+                <DetailSectionCard title="Affiliated Events" subtitle="Events are suggested from the studentâ€™s organization affiliations.">
                   {selectedStudentEvents.length > 0 ? (
                     <div className="space-y-3">
                       {selectedStudentEvents.map((eventRecord) => (

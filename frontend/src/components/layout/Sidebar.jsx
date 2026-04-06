@@ -17,7 +17,7 @@ import { cn } from '../../constants';
 import { useSession } from '../../context/SessionProvider';
 
 export const Sidebar = ({ activeTab, setActiveTab, onLogout, open = true, onClose }) => {
-  const { user, accessRole } = useSession();
+  const { user, accessRole, viewMode } = useSession();
 
   const roleDisplayMap = {
     DEAN: 'Dean',
@@ -36,7 +36,7 @@ export const Sidebar = ({ activeTab, setActiveTab, onLogout, open = true, onClos
     { id: 'scheduling', label: 'Scheduling', icon: Clock, roles: ['DEAN', 'CHAIR', 'FACULTY', 'SECRETARY'] },
     { id: 'research', label: 'College Research', icon: BookOpen, roles: ['DEAN', 'CHAIR', 'FACULTY'] },
     { id: 'instructions', label: 'Instructions', icon: FileText, roles: ['DEAN', 'CHAIR', 'FACULTY', 'SECRETARY'] },
-    { id: 'reports', label: 'Events', icon: Calendar, roles: ['DEAN', 'CHAIR', 'FACULTY', 'SECRETARY'] },
+    { id: 'reports', label: 'Events', icon: Calendar, roles: ['DEAN'] },
     { id: 'audit', label: 'Audit Logs', icon: MessageSquare, roles: ['DEAN'], hasSubmenu: true },
   ];
 
@@ -137,6 +137,7 @@ export const Sidebar = ({ activeTab, setActiveTab, onLogout, open = true, onClos
                     <p className="text-[11px] font-bold uppercase tracking-[0.16em] text-gray-400">Signed In User</p>
                     <p className="truncate text-sm font-bold text-gray-800">{displayName}</p>
                     <p className="truncate text-xs text-gray-500">{displayRole}</p>
+                    <p className="truncate text-[11px] font-semibold text-orange-600">{viewMode} View</p>
                   </div>
                 </div>
                 <div className="flex flex-col -space-y-1">

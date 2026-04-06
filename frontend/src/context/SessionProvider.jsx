@@ -30,12 +30,17 @@ export function SessionProvider({ children }) {
     setAccessRole('FACULTY');
   }, [user]);
 
+  const isAdmin = accessRole === 'DEAN';
+  const viewMode = isAdmin ? 'Admin' : 'User';
+
   const value = useMemo(() => ({
     user,
     setUser,
     accessRole,
     setAccessRole,
-  }), [user, accessRole]);
+    isAdmin,
+    viewMode,
+  }), [user, accessRole, isAdmin, viewMode]);
 
   return <SessionContext.Provider value={value}>{children}</SessionContext.Provider>;
 }

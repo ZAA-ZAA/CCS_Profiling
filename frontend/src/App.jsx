@@ -16,6 +16,7 @@ import { apiRequest } from './lib/api';
 import { UIProvider, useUI } from './components/ui/UIProvider';
 import { AccountSettingsModal } from './components/account/AccountSettingsModal';
 import { SessionProvider, useSession } from './context/SessionProvider';
+import { RoleRoute } from './components/routing/RoleRoute';
 
 const ROUTES = {
   dashboard: { path: '/dashboard', title: 'Dashboard' },
@@ -24,8 +25,8 @@ const ROUTES = {
   scheduling: { path: '/scheduling', title: 'Scheduling' },
   research: { path: '/research', title: 'College Research' },
   instructions: { path: '/instructions', title: 'Instructions' },
-  reports: { path: '/reports', title: 'Events' },
-  audit: { path: '/audit-logs', title: 'Audit Logs' },
+  reports: { path: '/reports', title: 'Events', adminOnly: true },
+  audit: { path: '/audit-logs', title: 'Audit Logs', adminOnly: true },
 };
 
 function getTabFromPath(pathname) {
@@ -45,10 +46,17 @@ function getPathForTab(tab, context = null) {
   return ROUTES[tab]?.path || ROUTES.dashboard.path;
 }
 
+function canAccessRoute(tab, isAdmin) {
+  const route = ROUTES[tab];
+  if (!route) return true;
+  if (route.adminOnly) return isAdmin;
+  return true;
+}
+
 function AppShell() {
   const location = useLocation();
   const navigate = useNavigate();
-  const { user, setUser, accessRole } = useSession();
+  const { user, setUser, accessRole, isAdmin } = useSession();
   const [showRegister, setShowRegister] = useState(false);
   const [navigationIntent, setNavigationIntent] = useState(null);
   const [showAccountSettings, setShowAccountSettings] = useState(false);
@@ -68,6 +76,14 @@ function AppShell() {
   }, [sidebarOpen]);
 
   const handleNavigate = (tab, context = null) => {
+    if (!canAccessRoute(tab, isAdmin)) {
+      setNavigationIntent(null);
+      if (location.pathname !== ROUTES.dashboard.path) {
+        navigate(ROUTES.dashboard.path);
+      }
+      return;
+    }
+
     setNavigationIntent({
       tab,
       context,
@@ -217,23 +233,30 @@ function AppShell() {
             <Route
               path={ROUTES.reports.path}
               element={
-                <OrgEventsReports
-                  navigationIntent={navigationIntent}
-                  clearNavigationIntent={clearNavigationIntent}
-                  onNavigate={handleNavigate}
-                />
+                <RoleRoute allow="admin">
+                  <OrgEventsReports
+                    navigationIntent={navigationIntent}
+                    clearNavigationIntent={clearNavigationIntent}
+                    onNavigate={handleNavigate}
+                  />
+                </RoleRoute>
               }
             />
-            <Route path={ROUTES.audit.path} element={<AuditLogs />} />
+            <Route
+              path={ROUTES.audit.path}
+              element={
+                <RoleRoute allow="admin">
+                  <AuditLogs />
+                </RoleRoute>
+              }
+            />
             <Route path="*" element={<Navigate to={ROUTES.dashboard.path} replace />} />
           </Routes>
         </div>
       </main>
 
       {showAccountSettings ? (
-        <AccountSettingsModal
-          onClose={() => setShowAccountSettings(false)}
-        />
+        <AccountSettingsModal onClose={() => setShowAccountSettings(false)} />
       ) : null}
     </div>
   );
