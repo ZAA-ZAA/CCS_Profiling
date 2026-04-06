@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+﻿import React, { useEffect, useState } from 'react';
 import { Navigate, Route, Routes, useLocation, useNavigate } from 'react-router-dom';
 import { Login } from './components/auth/Login';
 import { Register } from './components/auth/Register';
@@ -15,6 +15,7 @@ import { Menu, ShieldCheck } from 'lucide-react';
 import { apiRequest } from './lib/api';
 import { UIProvider, useUI } from './components/ui/UIProvider';
 import { AccountSettingsModal } from './components/account/AccountSettingsModal';
+import { SessionProvider, useSession } from './context/SessionProvider';
 
 const ROUTES = {
   dashboard: { path: '/dashboard', title: 'Dashboard' },
@@ -47,10 +48,7 @@ function getPathForTab(tab, context = null) {
 function AppShell() {
   const location = useLocation();
   const navigate = useNavigate();
-  const [user, setUser] = useState(() => {
-    const savedUser = localStorage.getItem('user');
-    return savedUser ? JSON.parse(savedUser) : null;
-  });
+  const { user, setUser, accessRole } = useSession();
   const [showRegister, setShowRegister] = useState(false);
   const [navigationIntent, setNavigationIntent] = useState(null);
   const [showAccountSettings, setShowAccountSettings] = useState(false);
@@ -59,14 +57,6 @@ function AppShell() {
 
   const activeTab = getTabFromPath(location.pathname);
   const pageTitle = ROUTES[activeTab]?.title || 'Dashboard';
-
-  useEffect(() => {
-    if (user) {
-      localStorage.setItem('user', JSON.stringify(user));
-    } else {
-      localStorage.removeItem('user');
-    }
-  }, [user]);
 
   useEffect(() => {
     if (!sidebarOpen) return;
@@ -120,7 +110,6 @@ function AppShell() {
   return (
     <div className="flex h-dvh overflow-hidden bg-gray-50 font-sans text-gray-900">
       <Sidebar
-        role={user.role || 'FACULTY'}
         activeTab={activeTab}
         setActiveTab={handleNavigate}
         open={sidebarOpen}
@@ -139,7 +128,6 @@ function AppShell() {
             showError('Logout sync failed', error.message);
           } finally {
             setUser(null);
-            localStorage.removeItem('user');
             navigate('/', { replace: true });
           }
         }}
@@ -167,7 +155,7 @@ function AppShell() {
             <ShieldCheck className="text-orange-600" size={18} />
             <div className="hidden text-right leading-tight sm:block">
               <p className="font-semibold text-gray-900">{user.username}</p>
-              <p className="text-xs text-gray-500">{user.role}</p>
+              <p className="text-xs text-gray-500">{accessRole}</p>
             </div>
           </button>
         </header>
@@ -244,9 +232,7 @@ function AppShell() {
 
       {showAccountSettings ? (
         <AccountSettingsModal
-          user={user}
           onClose={() => setShowAccountSettings(false)}
-          onUserUpdated={(nextUser) => setUser(nextUser)}
         />
       ) : null}
     </div>
@@ -256,7 +242,9 @@ function AppShell() {
 export default function App() {
   return (
     <UIProvider>
-      <AppShell />
+      <SessionProvider>
+        <AppShell />
+      </SessionProvider>
     </UIProvider>
   );
 }
