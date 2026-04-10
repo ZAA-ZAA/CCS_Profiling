@@ -2320,7 +2320,7 @@ export function StudentRecords({ navigationIntent, clearNavigationIntent, onNavi
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
-                {scopedStudents.map((student) => (
+                {students.map((student) => (
                   <StudentListRow
                     key={student.id}
                     student={student}

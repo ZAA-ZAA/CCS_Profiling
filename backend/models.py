@@ -4,7 +4,7 @@ from __future__ import annotations
 import copy
 import json
 import re
-from datetime import date, datetime
+from datetime import date, datetime, timezone
 from typing import Any, Iterable
 
 from flask import abort
@@ -1275,7 +1275,11 @@ class AuditLog(BaseModel):
             "details": self.details,
             "ip_address": self.ip_address,
             "tenant_id": self.tenant_id,
-            "created_at": self.created_at.isoformat() if self.created_at else None,
+            "created_at": (
+                self.created_at.replace(tzinfo=timezone.utc).isoformat()
+                if self.created_at
+                else None
+            ),
         }
 
 
