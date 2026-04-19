@@ -1,8 +1,13 @@
 import {StrictMode} from 'react';
 import {createRoot} from 'react-dom/client';
+import { BrowserRouter } from 'react-router-dom';
 import App from './App.jsx';
 import './index.css';
 import { API_URL } from './lib/api.js';
+import { initAutoUpdate } from './lib/autoUpdate.js';
+
+// Initialize auto-update checker
+initAutoUpdate();
 
 const nativeFetch = window.fetch.bind(window);
 
@@ -38,6 +43,8 @@ window.fetch = async (input, init = {}) => {
 
 createRoot(document.getElementById('root')).render(
   <StrictMode>
-    <App />
+    <BrowserRouter>
+      <App />
+    </BrowserRouter>
   </StrictMode>,
 );
