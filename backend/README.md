@@ -10,6 +10,24 @@ python init_db.py
 python app.py
 ```
 
+To fully wipe and reinitialize the database:
+
+```bash
+python reset_db.py --confirm RESET
+```
+
+To import students directly from an Excel or CSV file:
+
+```bash
+python import_students.py "C:\path\to\students.xlsx"
+```
+
+Preview rows without writing to MongoDB:
+
+```bash
+python import_students.py "C:\path\to\students.xlsx" --dry-run
+```
+
 API URL: `http://localhost:5000`
 
 ## Environment Variables

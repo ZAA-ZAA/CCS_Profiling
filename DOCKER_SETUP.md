@@ -58,6 +58,12 @@ docker-compose logs -f mongodb
 docker exec -it itew6-backend python init_db.py
 ```
 
+## Reset and Reinitialize the Database in Docker
+
+```bash
+docker exec -it itew6-backend python /app/reset_db.py --confirm RESET
+```
+
 ## Demo Login
 
 - Email: `admin@example.com`

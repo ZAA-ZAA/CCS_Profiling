@@ -73,6 +73,13 @@ Demo credentials:
 - Email: `admin@example.com`
 - Password: `admin123`
 
+To fully wipe and reinitialize the database:
+
+```bash
+cd backend
+python reset_db.py --confirm RESET
+```
+
 ## 6. API Areas
 
 ### Authentication

@@ -97,6 +97,20 @@ MONGO_AUTH_DB=admin
 
 The seeding is idempotent, so re-running it refreshes the demo data safely.
 
+To fully wipe and reinitialize the database, run:
+
+```bash
+cd backend
+python reset_db.py --confirm RESET
+```
+
+To import students directly from an Excel or CSV file without using the UI:
+
+```bash
+cd backend
+python import_students.py "C:\path\to\students.xlsx"
+```
+
 ## Presentation Flow
 
 For the live demo, use this order:
