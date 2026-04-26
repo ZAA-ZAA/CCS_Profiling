@@ -3,8 +3,10 @@ import { KeyRound, Mail, Save, User2 } from 'lucide-react';
 import { apiRequest } from '../../lib/api';
 import { useUI } from '../ui/UIProvider';
 import { ModalShell } from '../ui/ModalShell';
+import { useSession } from '../../context/SessionProvider';
 
-export function AccountSettingsModal({ user, onClose, onUserUpdated }) {
+export function AccountSettingsModal({ onClose }) {
+  const { user, setUser, setAccessRole } = useSession();
   const [formData, setFormData] = useState({
     username: user?.username || '',
     email: user?.email || '',
@@ -58,8 +60,8 @@ export function AccountSettingsModal({ user, onClose, onUserUpdated }) {
         ...user,
         ...response.data,
       };
-      localStorage.setItem('user', JSON.stringify(nextUser));
-      onUserUpdated(nextUser);
+      setUser(nextUser);
+      setAccessRole(nextUser.role || 'FACULTY');
       showSuccess('Account updated', 'Your settings were saved successfully.');
       onClose();
     } catch (error) {
@@ -173,4 +175,3 @@ export function AccountSettingsModal({ user, onClose, onUserUpdated }) {
     </ModalShell>
   );
 }
-

@@ -9,8 +9,24 @@ parent_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 if parent_dir not in sys.path:
     sys.path.insert(0, parent_dir)
 
+from academic_defaults import SEMESTER_OPTIONS
+from academic_logic import (
+    cleanup_inactive_sections_and_schedules,
+    ensure_schedule_offerings,
+    ensure_section_record,
+    list_sections,
+    normalize_section,
+    refresh_schedule_student_counts,
+    validate_student_section_availability,
+)
 from audit import log_audit_event
-from authz import require_roles
+from authz import (
+    get_request_actor,
+    require_roles,
+    resolve_actor_department,
+    resolve_actor_student_profile,
+    resolve_effective_role,
+)
 from models import (
     Student,
     StudentAcademicHistory,
@@ -18,6 +34,7 @@ from models import (
     StudentNonAcademicActivity,
     StudentSkill,
     StudentViolation,
+    User,
     db,
     or_,
 )
@@ -34,34 +51,169 @@ def normalize_filter(value):
     return stripped
 
 
+def resolve_actor_scope():
+    actor = get_request_actor()
+    actor_role = resolve_effective_role(actor)
+    department = resolve_actor_department(actor) if actor_role == 'CHAIR' else None
+    return actor_role, department
+
+
+def same_course(left, right):
+    return (left or '').strip().upper() == (right or '').strip().upper()
+
+
+def parse_birthday(value):
+    if not value:
+        return None
+    try:
+        return datetime.strptime(value, '%Y-%m-%d').date()
+    except ValueError as exc:
+        raise ValueError('birthday must be YYYY-MM-DD') from exc
+
+
+def normalize_account_identifier(value):
+    return (value or '').strip()
+
+
+def resolve_student_semester(data, current_student=None):
+    semester = (data.get('semester') or (current_student.semester if current_student else '') or SEMESTER_OPTIONS[0]).strip()
+    return semester or SEMESTER_OPTIONS[0]
+
+
+def resolve_student_section(data, current_student=None):
+    course = (data.get('course') or (current_student.course if current_student else '')).strip()
+    year_level = (data.get('year_level') or (current_student.year_level if current_student else '')).strip()
+    semester = resolve_student_semester(data, current_student=current_student)
+    tenant_id = (data.get('tenant_id') or (current_student.tenant_id if current_student else '') or '').strip() or None
+    requested_section = normalize_section(data.get('section'))
+
+    if requested_section:
+        return requested_section
+
+    preserve_section = ''
+    if current_student:
+        current_scope = (
+            (current_student.course or '').strip(),
+            (current_student.year_level or '').strip(),
+            (current_student.semester or '').strip(),
+        )
+        requested_scope = (course, year_level, semester)
+        if current_scope == requested_scope:
+            preserve_section = normalize_section(current_student.section)
+
+    available_sections = list_sections(
+        course=course,
+        year_level=year_level,
+        semester=semester,
+        tenant_id=tenant_id,
+        available_only=True,
+        exclude_student_record_id=current_student.id if current_student else None,
+        include_section=preserve_section,
+    )
+    if available_sections:
+        return normalize_section(available_sections[0].get('section'))
+
+    return preserve_section or 'A'
+
+
+def build_student_user_account(student_number, birthday, tenant_id):
+    account_identifier = normalize_account_identifier(student_number)
+    if not account_identifier:
+        raise ValueError('student_id is required to create an account')
+
+    if User.query.filter(User.email.ilike(account_identifier)).first():
+        raise ValueError('A user account with this student ID already exists')
+
+    if User.query.filter(User.username.ilike(account_identifier)).first():
+        raise ValueError('A username with this student ID already exists')
+
+    if not birthday:
+        raise ValueError('birthday is required to create an account')
+
+    account = User(
+        username=account_identifier,
+        email=account_identifier,
+        role='STUDENT',
+        tenant_id=tenant_id,
+    )
+    account.set_password(birthday.isoformat())
+    return account
+
+
 def validate_student_payload(data, is_update=False, current_student=None):
-    required_fields = ['student_id', 'first_name', 'last_name', 'course', 'year_level']
+    required_fields = ['student_id', 'first_name', 'last_name', 'birthday', 'course', 'year_level']
     if not is_update:
         missing = [field for field in required_fields if not (data.get(field) or '').strip()]
         if missing:
             return f"Missing required fields: {', '.join(missing)}"
 
-    student_number = (data.get('student_id') or '').strip()
+    student_number = (data.get('student_id') or (current_student.student_id if current_student else '')).strip()
     if student_number:
         existing = Student.query.filter_by(student_id=student_number).first()
         if existing and (not current_student or existing.id != current_student.id):
             return 'Student ID already exists'
+
+    course = (data.get('course') or (current_student.course if current_student else '')).strip()
+    year_level = (data.get('year_level') or (current_student.year_level if current_student else '')).strip()
+    semester = resolve_student_semester(data, current_student=current_student)
+    section = resolve_student_section(data, current_student=current_student)
+    tenant_id = (data.get('tenant_id') or (current_student.tenant_id if current_student else '') or '').strip() or None
+
+    if semester not in SEMESTER_OPTIONS:
+        return 'semester must be either 1st Semester or 2nd Semester'
+
+    section_error = validate_student_section_availability(
+        course=course,
+        year_level=year_level,
+        semester=semester,
+        section=section,
+        tenant_id=tenant_id,
+        current_student_id=current_student.id if current_student else None,
+    )
+    if section_error:
+        return section_error
 
     return None
 
 
 @students_bp.route('', methods=['GET'])
 def get_students():
-    """Get students with optional filters for search, course, year level, skill, activity, and affiliation."""
+    """Get students with optional filters for search, course, year level, section, skill, activity, and affiliation."""
+    actor = get_request_actor()
+    actor_role = resolve_effective_role(actor)
+    chair_department = resolve_actor_department(actor) if actor_role == 'CHAIR' else None
     tenant_id = normalize_filter(request.args.get('tenant_id'))
     search = normalize_filter(request.args.get('search'))
     course = normalize_filter(request.args.get('course'))
     year_level = normalize_filter(request.args.get('year_level'))
+    semester = normalize_filter(request.args.get('semester'))
+    section = normalize_filter(request.args.get('section'))
     skill = normalize_filter(request.args.get('skill'))
     activity = normalize_filter(request.args.get('activity'))
     affiliation = normalize_filter(request.args.get('affiliation'))
 
     query = Student.query
+
+    if actor_role == 'STUDENT':
+        profile = resolve_actor_student_profile(actor)
+        if not profile:
+            return jsonify({'success': False, 'message': 'Student account is not linked to a student profile'}), 404
+
+        if profile.course:
+            query = query.filter(Student.course == profile.course)
+        if profile.year_level:
+            query = query.filter(Student.year_level == profile.year_level)
+        if profile.semester:
+            query = query.filter(Student.semester == profile.semester)
+        if profile.section:
+            query = query.filter(Student.section.ilike(profile.section))
+        if profile.tenant_id:
+            query = query.filter(Student.tenant_id == profile.tenant_id)
+
+    if actor_role == 'CHAIR':
+        if not chair_department:
+            return jsonify({'success': True, 'data': []})
+        query = query.filter(Student.course == chair_department)
 
     if tenant_id:
         query = query.filter(Student.tenant_id == tenant_id)
@@ -71,6 +223,12 @@ def get_students():
 
     if year_level:
         query = query.filter(Student.year_level == year_level)
+
+    if semester:
+        query = query.filter(Student.semester == semester)
+
+    if section:
+        query = query.filter(Student.section.ilike(section))
 
     if search:
         search_term = f'%{search}%'
@@ -83,6 +241,8 @@ def get_students():
                 Student.email.ilike(search_term),
                 Student.contact_number.ilike(search_term),
                 Student.course.ilike(search_term),
+                Student.section.ilike(search_term),
+                Student.semester.ilike(search_term),
             )
         )
 
@@ -112,29 +272,93 @@ def get_students():
     return jsonify({'success': True, 'data': [student.to_dict() for student in students]})
 
 
+@students_bp.route('/me', methods=['GET'])
+@require_roles(['STUDENT'])
+def get_my_student_profile():
+    actor = get_request_actor()
+    student_profile = resolve_actor_student_profile(actor)
+    if not student_profile:
+        return jsonify({'success': False, 'message': 'Student account is not linked to a student profile'}), 404
+    return jsonify({'success': True, 'data': student_profile.to_dict()})
+
+
 @students_bp.route('', methods=['POST'])
+@require_roles(['DEAN', 'CHAIR', 'SECRETARY'])
 def create_student():
     """Create a new student."""
     data = request.get_json(silent=True) or {}
+    actor_role, chair_department = resolve_actor_scope()
+    tenant_id = (data.get('tenant_id') or '').strip() or None
+
+    if actor_role == 'CHAIR':
+        if not chair_department:
+            return jsonify({'success': False, 'message': 'Chair account is not linked to any department'}), 403
+        requested_course = (data.get('course') or '').strip()
+        if requested_course and not same_course(requested_course, chair_department):
+            return jsonify({'success': False, 'message': f'Chair accounts can only manage {chair_department} students'}), 403
+        data['course'] = chair_department
+
     validation_error = validate_student_payload(data)
     if validation_error:
         return jsonify({'success': False, 'message': validation_error}), 400
 
     try:
+        student_number = data.get('student_id', '').strip()
+        birthday = parse_birthday((data.get('birthday') or '').strip())
+        semester = resolve_student_semester(data)
+        section = resolve_student_section(data)
+
+        account = build_student_user_account(student_number, birthday, tenant_id)
+
         student = Student(
-            student_id=data.get('student_id', '').strip(),
+            student_id=student_number,
             first_name=data.get('first_name', '').strip(),
             last_name=data.get('last_name', '').strip(),
             middle_name=(data.get('middle_name') or '').strip() or None,
+            birthday=birthday,
             email=(data.get('email') or '').strip() or None,
             contact_number=(data.get('contact_number') or '').strip() or None,
             course=(data.get('course') or '').strip() or None,
             year_level=(data.get('year_level') or '').strip() or None,
-            enrollment_status=(data.get('enrollment_status') or 'Enrolled').strip(),
-            tenant_id=(data.get('tenant_id') or '').strip() or None,
+            semester=semester,
+            section=section or None,
+            enrollment_status='Enrolled',
+            tenant_id=tenant_id,
         )
+        ensure_section_record(student.course, student.year_level, student.semester, student.section, tenant_id=student.tenant_id)
+        db.session.add(account)
         db.session.add(student)
         db.session.commit()
+        changed = ensure_schedule_offerings(
+            course=student.course,
+            year_level=student.year_level,
+            semester=student.semester,
+            tenant_id=student.tenant_id,
+        )
+        if refresh_schedule_student_counts(
+            student.course,
+            student.year_level,
+            student.semester,
+            student.section,
+            tenant_id=student.tenant_id,
+        ):
+            changed = True
+        if changed:
+            db.session.commit()
+
+        log_audit_event(
+            'CREATE',
+            'USER',
+            entity_id=account.id,
+            entity_name=account.username,
+            details={
+                'email': account.email,
+                'role': account.role,
+                'linked_student_id': student.student_id,
+            },
+            req=request,
+            tenant_id=account.tenant_id,
+        )
 
         log_audit_event(
             'CREATE',
@@ -150,7 +374,15 @@ def create_student():
             'success': True,
             'message': 'Student created successfully',
             'data': student.to_dict(),
+            'account': {
+                'email': account.email,
+                'password': birthday.isoformat(),
+                'role': account.role,
+            },
         }), 201
+    except ValueError as exc:
+        db.session.rollback()
+        return jsonify({'success': False, 'message': str(exc) or 'birthday must be YYYY-MM-DD'}), 400
     except Exception as exc:
         db.session.rollback()
         return jsonify({'success': False, 'message': f'Failed to create student: {exc}'}), 500
@@ -160,6 +392,12 @@ def create_student():
 def get_student(student_id):
     """Get a specific student."""
     student = Student.query.get_or_404(student_id)
+    actor_role, chair_department = resolve_actor_scope()
+    if actor_role == 'CHAIR':
+        if not chair_department:
+            return jsonify({'success': False, 'message': 'Chair account is not linked to any department'}), 403
+        if not same_course(student.course, chair_department):
+            return jsonify({'success': False, 'message': f'Chair accounts can only access {chair_department} students'}), 403
     return jsonify({'success': True, 'data': student.to_dict()})
 
 
@@ -168,10 +406,32 @@ def update_student(student_id):
     """Update a student."""
     student = Student.query.get_or_404(student_id)
     data = request.get_json(silent=True) or {}
+    actor_role, chair_department = resolve_actor_scope()
+
+    if actor_role == 'CHAIR':
+        if not chair_department:
+            return jsonify({'success': False, 'message': 'Chair account is not linked to any department'}), 403
+        if not same_course(student.course, chair_department):
+            return jsonify({'success': False, 'message': f'Chair accounts can only access {chair_department} students'}), 403
+
+        next_course = (data.get('course') or student.course or '').strip()
+        if next_course and not same_course(next_course, chair_department):
+            return jsonify({'success': False, 'message': f'Chair accounts can only manage {chair_department} students'}), 403
+        data['course'] = chair_department
+
     validation_error = validate_student_payload(data, is_update=True, current_student=student)
     if validation_error:
         return jsonify({'success': False, 'message': validation_error}), 400
 
+    if 'birthday' in data:
+        try:
+            student.birthday = parse_birthday((data.get('birthday') or '').strip())
+        except ValueError:
+            return jsonify({'success': False, 'message': 'birthday must be YYYY-MM-DD'}), 400
+
+    old_scope = (student.course, student.year_level, student.semester, student.section, student.tenant_id)
+    next_semester = resolve_student_semester(data, current_student=student)
+    next_section = resolve_student_section(data, current_student=student)
     student.student_id = (data.get('student_id') or student.student_id).strip()
     student.first_name = (data.get('first_name') or student.first_name).strip()
     student.last_name = (data.get('last_name') or student.last_name).strip()
@@ -180,10 +440,37 @@ def update_student(student_id):
     student.contact_number = (data.get('contact_number') or '').strip() or None
     student.course = (data.get('course') or student.course or '').strip() or None
     student.year_level = (data.get('year_level') or student.year_level or '').strip() or None
-    student.enrollment_status = (data.get('enrollment_status') or student.enrollment_status or 'Enrolled').strip()
+    student.semester = next_semester
+    student.section = next_section or None
+    student.enrollment_status = 'Enrolled'
     student.tenant_id = (data.get('tenant_id') or student.tenant_id or '').strip() or None
 
+    ensure_section_record(student.course, student.year_level, student.semester, student.section, tenant_id=student.tenant_id)
     db.session.commit()
+    scopes = {old_scope, (student.course, student.year_level, student.semester, student.section, student.tenant_id)}
+    refreshed = ensure_schedule_offerings(
+        course=student.course,
+        year_level=student.year_level,
+        semester=student.semester,
+        tenant_id=student.tenant_id,
+    )
+    for course_value, year_level_value, semester_value, section_value, tenant_value in scopes:
+        refreshed = cleanup_inactive_sections_and_schedules(
+            course_value,
+            year_level_value,
+            semester_value,
+            section_value,
+            tenant_id=tenant_value,
+        ) or refreshed
+        refreshed = refresh_schedule_student_counts(
+            course_value,
+            year_level_value,
+            semester_value,
+            section_value,
+            tenant_id=tenant_value,
+        ) or refreshed
+    if refreshed:
+        db.session.commit()
     log_audit_event(
         'UPDATE',
         'STUDENT',
@@ -209,8 +496,14 @@ def delete_student(student_id):
     entity_name = f'{student.first_name} {student.last_name}'
     tenant_id = student.tenant_id
     student_number = student.student_id
+    schedule_scope = (student.course, student.year_level, student.semester, student.section, student.tenant_id)
     db.session.delete(student)
     db.session.commit()
+    changed = cleanup_inactive_sections_and_schedules(*schedule_scope[:4], tenant_id=schedule_scope[4])
+    if refresh_schedule_student_counts(*schedule_scope[:4], tenant_id=schedule_scope[4]):
+        changed = True
+    if changed:
+        db.session.commit()
     log_audit_event(
         'DELETE',
         'STUDENT',

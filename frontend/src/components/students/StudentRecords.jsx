@@ -1,8 +1,8 @@
-import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+﻿import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useNavigate, useParams } from 'react-router-dom';
 import {
   Download,
   Edit3,
-  Eye,
   FileImage,
   FileSpreadsheet,
   FileText,
@@ -10,7 +10,6 @@ import {
   Mail,
   Phone,
   Plus,
-  Search,
   ShieldAlert,
   Sparkles,
   Trash2,
@@ -18,30 +17,36 @@ import {
   Users,
 } from 'lucide-react';
 import { StudentForm } from './StudentForm';
+import { StudentListRow } from './StudentListRow';
+import { StudentSearchBar } from './StudentSearchBar';
 import { ModalShell } from '../ui/ModalShell';
 import { useUI } from '../ui/UIProvider';
+import { useSession } from '../../context/SessionProvider';
 import { apiRequest } from '../../lib/api';
 import {
   ACTIVITY_TYPES,
   AFFILIATION_CATEGORIES,
   AFFILIATION_ROLES,
   CORE_COURSES,
+  TERM_SEMESTERS,
   VIOLATION_SEVERITIES,
   YEAR_LEVELS,
 } from '../../lib/formOptions';
 import { cn } from '../../constants';
-import { getInitials, parseOptionalJson } from '../../lib/display';
+import { getInitials, matchesFacultyAssignment, parseOptionalJson } from '../../lib/display';
 
 const defaultStudentForm = {
   student_id: '',
   first_name: '',
   last_name: '',
   middle_name: '',
+  birthday: '',
   email: '',
   contact_number: '',
   course: 'BSIT',
   year_level: '1st Year',
-  enrollment_status: 'Enrolled',
+  semester: '1st Semester',
+  section: '',
 };
 
 const defaultDetailForms = {
@@ -81,25 +86,29 @@ const STUDENT_EXPORT_COLUMNS = [
   { key: 'first_name', label: 'First Name', required: true },
   { key: 'last_name', label: 'Last Name', required: true },
   { key: 'middle_name', label: 'Middle Name', required: false },
+  { key: 'birthday', label: 'Birthday', required: true },
   { key: 'email', label: 'Email', required: false },
   { key: 'contact_number', label: 'Contact Number', required: false },
   { key: 'course', label: 'Course', required: true },
   { key: 'year_level', label: 'Year Level', required: true },
-  { key: 'enrollment_status', label: 'Enrollment Status', required: false },
+  { key: 'semester', label: 'Semester', required: false },
+  { key: 'section', label: 'Section', required: false },
 ];
 
 const STUDENT_REQUIRED_KEYS = STUDENT_EXPORT_COLUMNS.filter((column) => column.required).map((column) => column.key);
-const STUDENT_COLUMN_WIDTHS = [100, 105, 105, 95, 180, 120, 90, 95, 130];
+const STUDENT_COLUMN_WIDTHS = [100, 105, 105, 95, 110, 180, 120, 90, 95, 110, 80];
 const STUDENT_FIELD_LIMITS = {
   student_id: 50,
   first_name: 100,
   last_name: 100,
   middle_name: 100,
+  birthday: 10,
   email: 120,
   contact_number: 20,
   course: 100,
   year_level: 50,
-  enrollment_status: 50,
+  semester: 50,
+  section: 20,
 };
 
 const FILE_TYPE_OPTIONS = [
@@ -113,15 +122,16 @@ const STUDENT_COLUMN_ALIASES = {
   first_name: ['first name', 'firstname', 'given name'],
   last_name: ['last name', 'lastname', 'surname', 'family name'],
   middle_name: ['middle name', 'middlename', 'middle initial'],
+  birthday: ['birthday', 'birth date', 'date of birth', 'dob'],
   email: ['email', 'email address'],
   contact_number: ['contact number', 'contact', 'phone', 'mobile', 'contact no'],
   course: ['course', 'program'],
   year_level: ['year level', 'yearlevel', 'year', 'level'],
-  enrollment_status: ['enrollment status', 'status', 'enrollment'],
+  semester: ['semester', 'term'],
+  section: ['section', 'sec', 'section name'],
 };
 
 const YEAR_LEVEL_OPTIONS = ['1st Year', '2nd Year', '3rd Year', '4th Year'];
-const ENROLLMENT_STATUS_OPTIONS = ['Enrolled', 'Irregular', 'On Leave', 'Graduated', 'Dropped'];
 
 const skillLevels = ['Beginner', 'Intermediate', 'Advanced', 'Competitive'];
 const violationSuggestions = [
@@ -135,6 +145,10 @@ const violationSuggestions = [
 function sanitizeValue(value) {
   if (value === null || value === undefined) return '';
   return String(value).trim();
+}
+
+function sameCourse(left, right) {
+  return sanitizeValue(left).toUpperCase() === sanitizeValue(right).toUpperCase();
 }
 
 function normalizeHeaderName(value) {
@@ -266,10 +280,32 @@ function normalizeYearLevel(value) {
   return '';
 }
 
-function normalizeEnrollmentStatus(value) {
+function normalizeSemester(value) {
   const text = sanitizeValue(value);
-  const direct = ENROLLMENT_STATUS_OPTIONS.find((status) => status.toLowerCase() === text.toLowerCase());
-  return direct || (text || 'Enrolled');
+  const direct = TERM_SEMESTERS.find((semester) => semester.toLowerCase() === text.toLowerCase());
+  if (direct) return direct;
+
+  if (text.toLowerCase().includes('2nd')) return '2nd Semester';
+  return text ? '1st Semester' : '';
+}
+
+function normalizeBirthday(value) {
+  const text = sanitizeValue(value);
+  if (!text) return '';
+
+  if (/^\d{4}-\d{2}-\d{2}$/.test(text)) {
+    return text;
+  }
+
+  const mmddyyyy = text.match(/^(\d{1,2})[/-](\d{1,2})[/-](\d{4})$/);
+  if (mmddyyyy) {
+    const month = mmddyyyy[1].padStart(2, '0');
+    const day = mmddyyyy[2].padStart(2, '0');
+    const year = mmddyyyy[3];
+    return `${year}-${month}-${day}`;
+  }
+
+  return text;
 }
 
 function toStudentPayload(rawRow) {
@@ -277,24 +313,28 @@ function toStudentPayload(rawRow) {
   const firstName = normalizeName(resolveValueFromAliases(rawRow, STUDENT_COLUMN_ALIASES.first_name));
   const lastName = normalizeName(resolveValueFromAliases(rawRow, STUDENT_COLUMN_ALIASES.last_name));
   const middleName = normalizeName(resolveValueFromAliases(rawRow, STUDENT_COLUMN_ALIASES.middle_name));
+  const birthday = normalizeBirthday(resolveValueFromAliases(rawRow, STUDENT_COLUMN_ALIASES.birthday));
   const email = normalizeEmail(resolveValueFromAliases(rawRow, STUDENT_COLUMN_ALIASES.email));
   const contactNumber = normalizePhone(resolveValueFromAliases(rawRow, STUDENT_COLUMN_ALIASES.contact_number));
   const course = normalizeCourse(resolveValueFromAliases(rawRow, STUDENT_COLUMN_ALIASES.course));
   const yearLevel = normalizeYearLevel(resolveValueFromAliases(rawRow, STUDENT_COLUMN_ALIASES.year_level));
-  const enrollmentStatus = normalizeEnrollmentStatus(
-    resolveValueFromAliases(rawRow, STUDENT_COLUMN_ALIASES.enrollment_status),
-  );
+  const semester = normalizeSemester(resolveValueFromAliases(rawRow, STUDENT_COLUMN_ALIASES.semester));
+  const section = sanitizeValue(resolveValueFromAliases(rawRow, STUDENT_COLUMN_ALIASES.section))
+    .replace(/[^A-Za-z0-9-]/g, '')
+    .toUpperCase();
 
   return {
     student_id: clampField(studentId, STUDENT_FIELD_LIMITS.student_id),
     first_name: clampField(firstName, STUDENT_FIELD_LIMITS.first_name),
     last_name: clampField(lastName, STUDENT_FIELD_LIMITS.last_name),
     middle_name: clampField(middleName, STUDENT_FIELD_LIMITS.middle_name),
+    birthday: clampField(birthday, STUDENT_FIELD_LIMITS.birthday),
     email: clampField(email, STUDENT_FIELD_LIMITS.email),
     contact_number: clampField(contactNumber, STUDENT_FIELD_LIMITS.contact_number),
     course: clampField(course, STUDENT_FIELD_LIMITS.course),
     year_level: clampField(yearLevel, STUDENT_FIELD_LIMITS.year_level),
-    enrollment_status: clampField(enrollmentStatus, STUDENT_FIELD_LIMITS.enrollment_status),
+    semester: clampField(semester, STUDENT_FIELD_LIMITS.semester),
+    section: clampField(section, STUDENT_FIELD_LIMITS.section),
   };
 }
 
@@ -365,10 +405,13 @@ function extractRowsFromText(text) {
       'First Name': firstName,
       'Last Name': lastName,
       'Middle Name': middleName,
+      Birthday: '',
       Email: emailMatch ? emailMatch[0] : '',
       'Contact Number': phoneMatch ? phoneMatch[0] : '',
       Course: courseMatch,
       'Year Level': yearMatch[0],
+      Semester: '1st Semester',
+      Section: '',
       'Enrollment Status': 'Enrolled',
     });
   });
@@ -518,7 +561,45 @@ function studentMatchesSchedule(student, schedule) {
   }
 
   if (schedule.year_level && student.year_level) {
-    return schedule.year_level === student.year_level;
+    if (schedule.year_level !== student.year_level) {
+      return false;
+    }
+  }
+
+  if (schedule.semester && student.semester) {
+    if (schedule.semester !== student.semester) {
+      return false;
+    }
+  }
+
+  if (schedule.section && student.section) {
+    return schedule.section === student.section;
+  }
+
+  return true;
+}
+
+function studentMatchesFacultySchedule(student, schedule) {
+  if (!student || !schedule) {
+    return false;
+  }
+
+  if (schedule.course && student.course !== schedule.course) {
+    return false;
+  }
+
+  if (schedule.year_level && student.year_level && schedule.year_level !== student.year_level) {
+    return false;
+  }
+
+  if (schedule.semester && student.semester && schedule.semester !== student.semester) {
+    return false;
+  }
+
+  if (schedule.section) {
+    const studentSection = (student.section || '').trim().toUpperCase();
+    const scheduleSection = (schedule.section || '').trim().toUpperCase();
+    return studentSection === scheduleSection;
   }
 
   return true;
@@ -530,11 +611,13 @@ function buildStudentPayload(formData) {
     first_name: (formData.first_name || '').trim(),
     last_name: (formData.last_name || '').trim(),
     middle_name: (formData.middle_name || '').trim(),
+    birthday: (formData.birthday || '').trim(),
     email: (formData.email || '').trim(),
     contact_number: (formData.contact_number || '').trim(),
     course: formData.course,
     year_level: formData.year_level,
-    enrollment_status: formData.enrollment_status,
+    semester: formData.semester,
+    section: (formData.section || '').trim().toUpperCase(),
   };
 }
 
@@ -586,8 +669,12 @@ function ItemActionButtons({ onEdit, onDelete }) {
 }
 
 export function StudentRecords({ navigationIntent, clearNavigationIntent, onNavigate }) {
+  const navigate = useNavigate();
+  const { id: routeStudentId } = useParams();
+  const { user, accessRole } = useSession();
   const { showError, showSuccess, showInfo, confirm } = useUI();
   const [students, setStudents] = useState([]);
+  const [facultyProfiles, setFacultyProfiles] = useState([]);
   const [selectedStudent, setSelectedStudent] = useState(null);
   const [showAddModal, setShowAddModal] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
@@ -601,6 +688,8 @@ export function StudentRecords({ navigationIntent, clearNavigationIntent, onNavi
   const [activityQuery, setActivityQuery] = useState('');
   const [affiliationQuery, setAffiliationQuery] = useState('');
   const [formData, setFormData] = useState(defaultStudentForm);
+  const [sectionOptions, setSectionOptions] = useState([]);
+  const [sectionLoading, setSectionLoading] = useState(false);
   const [detailForms, setDetailForms] = useState(defaultDetailForms);
   const [organizations, setOrganizations] = useState([]);
   const [schedules, setSchedules] = useState([]);
@@ -658,9 +747,10 @@ export function StudentRecords({ navigationIntent, clearNavigationIntent, onNavi
         apiRequest('/api/syllabus'),
         apiRequest('/api/curriculum'),
         apiRequest('/api/lessons'),
+        apiRequest('/api/faculty'),
       ]);
 
-      const [orgs, scheduleData, eventData, syllabusData, curriculumData, lessonData] = results.map(
+      const [orgs, scheduleData, eventData, syllabusData, curriculumData, lessonData, facultyData] = results.map(
         (result) => (result.status === 'fulfilled' ? result.value.data || [] : []),
       );
 
@@ -670,6 +760,7 @@ export function StudentRecords({ navigationIntent, clearNavigationIntent, onNavi
       setSyllabi(syllabusData);
       setCurricula(curriculumData);
       setLessons(lessonData);
+      setFacultyProfiles(facultyData);
 
       if (results.some((result) => result.status === 'rejected')) {
         showInfo('Some linked data is unavailable', 'Student profiles still work, but a few connected summaries may be incomplete.');
@@ -679,10 +770,92 @@ export function StudentRecords({ navigationIntent, clearNavigationIntent, onNavi
     }
   }, [showInfo]);
 
+  const facultyLoginTokens = useMemo(
+    () => [user?.email, user?.username].map((value) => sanitizeValue(value).toLowerCase()).filter(Boolean),
+    [user?.email, user?.username],
+  );
+
+  const matchedFacultyProfile = useMemo(
+    () =>
+      facultyProfiles.find((item) => {
+        const email = sanitizeValue(item.email).toLowerCase();
+        const employeeNumber = sanitizeValue(item.employee_number).toLowerCase();
+        return facultyLoginTokens.some((token) => token === email || token === employeeNumber);
+      }) || null,
+    [facultyLoginTokens, facultyProfiles],
+  );
+
+  const normalizedFacultyPosition = sanitizeValue(matchedFacultyProfile?.position).toLowerCase();
+  const hasChairPosition = ['department chair', 'dept chair', 'chair', 'chairperson'].includes(normalizedFacultyPosition);
+  const isChairUser = accessRole === 'CHAIR' || (accessRole === 'FACULTY' && hasChairPosition);
+  const isFacultyUser = accessRole === 'FACULTY' && !hasChairPosition;
+  const facultyProfile = isFacultyUser ? matchedFacultyProfile : null;
+  const chairProfile = isChairUser ? matchedFacultyProfile : null;
+  const chairDepartment = sanitizeValue(chairProfile?.department);
+
+  const facultyAssignedSchedules = useMemo(() => {
+    if (!isFacultyUser || !facultyProfile) {
+      return [];
+    }
+    return schedules.filter((schedule) => matchesFacultyAssignment(schedule, facultyProfile));
+  }, [facultyProfile, isFacultyUser, schedules]);
+
+  const canRoleAccessStudent = useCallback(
+    (studentRecord) => {
+      if (isFacultyUser) {
+        if (!facultyProfile || facultyAssignedSchedules.length === 0) {
+          return false;
+        }
+        return facultyAssignedSchedules.some((schedule) => studentMatchesFacultySchedule(studentRecord, schedule));
+      }
+
+      if (isChairUser) {
+        if (!chairDepartment) {
+          return false;
+        }
+        return sameCourse(studentRecord?.course, chairDepartment);
+      }
+
+      return true;
+    },
+    [chairDepartment, facultyAssignedSchedules, facultyProfile, isChairUser, isFacultyUser],
+  );
+
+  const scopedStudents = useMemo(() => {
+    if (isFacultyUser && (!facultyProfile || facultyAssignedSchedules.length === 0)) {
+      return [];
+    }
+
+    if (isChairUser && !chairDepartment) {
+      return [];
+    }
+
+    return students.filter((student) => canRoleAccessStudent(student));
+  }, [
+    canRoleAccessStudent,
+    chairDepartment,
+    facultyAssignedSchedules.length,
+    facultyProfile,
+    isChairUser,
+    isFacultyUser,
+    students,
+  ]);
+
   const fetchStudentDetails = useCallback(
     async (studentId) => {
       try {
         const response = await apiRequest(`/api/students/${studentId}`);
+        if (!canRoleAccessStudent(response.data)) {
+          showError(
+            'Access restricted',
+            isChairUser
+              ? `You can only view student profiles under ${chairDepartment || 'your assigned'} department.`
+              : 'You can only view student profiles from sections assigned to you.',
+          );
+          setSelectedStudent(null);
+          navigate('/users');
+          return null;
+        }
         setSelectedStudent(response.data);
         return response.data;
       } catch (error) {
@@ -690,12 +863,19 @@ export function StudentRecords({ navigationIntent, clearNavigationIntent, onNavi
         return null;
       }
     },
-    [showError],
+    [canRoleAccessStudent, chairDepartment, isChairUser, navigate, showError],
   );
 
   useEffect(() => {
     fetchSupportData();
   }, [fetchSupportData]);
+
+  useEffect(() => {
+    if (!isChairUser) {
+      return;
+    }
+    setFilterCourse(chairDepartment || '');
+  }, [chairDepartment, isChairUser]);
 
   useEffect(() => {
     const timer = window.setTimeout(() => {
@@ -726,11 +906,37 @@ export function StudentRecords({ navigationIntent, clearNavigationIntent, onNavi
     if (Object.prototype.hasOwnProperty.call(context, 'affiliation')) setAffiliationQuery(context.affiliation || '');
 
     if (context.studentId) {
-      fetchStudentDetails(context.studentId);
+      navigate('/users/' + context.studentId);
     }
 
     clearNavigationIntent?.();
-  }, [navigationIntent, clearNavigationIntent, fetchStudentDetails]);
+  }, [navigationIntent, clearNavigationIntent, navigate]);
+
+  useEffect(() => {
+    if (!routeStudentId) {
+      setSelectedStudent(null);
+      return;
+    }
+
+    if (String(selectedStudent?.id) === String(routeStudentId)) {
+      return;
+    }
+
+    fetchStudentDetails(routeStudentId);
+  }, [fetchStudentDetails, routeStudentId, selectedStudent?.id]);
+
+  useEffect(() => {
+    if (!selectedStudent) {
+      return;
+    }
+    if (canRoleAccessStudent(selectedStudent)) {
+      return;
+    }
+    setSelectedStudent(null);
+    if (routeStudentId) {
+      navigate('/users');
+    }
+  }, [canRoleAccessStudent, navigate, routeStudentId, selectedStudent]);
 
   useEffect(() => {
     const handleOutsideClick = (event) => {
@@ -770,44 +976,101 @@ export function StudentRecords({ navigationIntent, clearNavigationIntent, onNavi
     skillQuery,
   ]);
 
+  const fetchSectionOptions = useCallback(
+    async ({ course, yearLevel, semester, studentRecordId = null, includeSection = '' } = {}) => {
+      if (!course || !yearLevel || !semester) {
+        setSectionOptions([]);
+        return;
+      }
+
+      try {
+        setSectionLoading(true);
+        const params = new URLSearchParams({
+          course,
+          year_level: yearLevel,
+          semester,
+          available_only: 'true',
+        });
+        if (studentRecordId) params.append('student_record_id', String(studentRecordId));
+        if (includeSection) params.append('include_section', includeSection);
+        const response = await apiRequest(`/api/sections?${params.toString()}`);
+        setSectionOptions(response.data || []);
+      } catch (error) {
+        setSectionOptions([]);
+        showError('Unable to load section list', error.message);
+      } finally {
+        setSectionLoading(false);
+      }
+    },
+    [showError],
+  );
+
+  useEffect(() => {
+    if (!showAddModal && !showEditModal) {
+      return;
+    }
+
+    fetchSectionOptions({
+      course: formData.course,
+      yearLevel: formData.year_level,
+      semester: formData.semester,
+      studentRecordId: showEditModal ? selectedStudent?.id : null,
+      includeSection: showEditModal ? formData.section : '',
+    });
+  }, [fetchSectionOptions, formData.course, formData.semester, formData.year_level, selectedStudent?.id, showAddModal, showEditModal]);
+
+  useEffect(() => {
+    if (!showAddModal && !showEditModal) {
+      return;
+    }
+
+    const suggestedSection = sectionOptions[0]?.section || '';
+    setFormData((current) => {
+      if ((current.section || '') === suggestedSection) {
+        return current;
+      }
+      return { ...current, section: suggestedSection };
+    });
+  }, [sectionOptions, showAddModal, showEditModal]);
+
   const quickSkillQueries = useMemo(
-    () => getTopItems(students.flatMap((student) => (student.skills || []).map((skill) => skill.skill_name))),
-    [students],
+    () => getTopItems(scopedStudents.flatMap((student) => (student.skills || []).map((skill) => skill.skill_name))),
+    [scopedStudents],
   );
 
   const quickActivityQueries = useMemo(
     () =>
       getTopItems(
-        students.flatMap((student) => (student.activities || []).map((activity) => activity.activity_name || activity.activity_type)),
+        scopedStudents.flatMap((student) => (student.activities || []).map((activity) => activity.activity_name || activity.activity_type)),
         3,
       ),
-    [students],
+    [scopedStudents],
   );
 
   const quickAffiliationQueries = useMemo(
-    () => getTopItems(students.flatMap((student) => (student.affiliations || []).map((item) => item.name)), 3),
-    [students],
+    () => getTopItems(scopedStudents.flatMap((student) => (student.affiliations || []).map((item) => item.name)), 3),
+    [scopedStudents],
   );
 
   const skillSuggestions = useMemo(
-    () => getTopItems(students.flatMap((student) => (student.skills || []).map((skill) => skill.skill_name)), 10).map((item) => item.label),
-    [students],
+    () => getTopItems(scopedStudents.flatMap((student) => (student.skills || []).map((skill) => skill.skill_name)), 10).map((item) => item.label),
+    [scopedStudents],
   );
 
   const activitySuggestions = useMemo(
     () =>
       getTopItems(
-        students.flatMap((student) => (student.activities || []).map((activity) => activity.activity_name || activity.activity_type)),
+        scopedStudents.flatMap((student) => (student.activities || []).map((activity) => activity.activity_name || activity.activity_type)),
         10,
       ).map((item) => item.label),
-    [students],
+    [scopedStudents],
   );
 
   const affiliationSuggestions = useMemo(() => {
     const organizationNames = organizations.map((org) => org.name);
-    const existingAffiliations = students.flatMap((student) => (student.affiliations || []).map((item) => item.name));
+    const existingAffiliations = scopedStudents.flatMap((student) => (student.affiliations || []).map((item) => item.name));
     return [...new Set([...organizationNames, ...existingAffiliations].filter(Boolean))].sort();
-  }, [organizations, students]);
+  }, [organizations, scopedStudents]);
 
   const selectedStudentSchedules = useMemo(
     () => schedules.filter((schedule) => studentMatchesSchedule(selectedStudent, schedule)),
@@ -819,19 +1082,27 @@ export function StudentRecords({ navigationIntent, clearNavigationIntent, onNavi
       return [];
     }
 
+    const relatedCodes = new Set(selectedStudentSchedules.map((schedule) => schedule.subject_code?.toLowerCase()).filter(Boolean));
     const relatedSubjects = new Set(selectedStudentSchedules.map((schedule) => schedule.subject?.toLowerCase()).filter(Boolean));
     return syllabi.filter((syllabus) => {
       if (syllabus.course !== selectedStudent.course) {
         return false;
       }
 
-      if (relatedSubjects.size === 0) {
+      if (syllabus.semester && selectedStudent.semester && syllabus.semester !== selectedStudent.semester) {
+        return false;
+      }
+
+      if (relatedSubjects.size === 0 && relatedCodes.size === 0) {
         return true;
       }
 
       const subject = (syllabus.subject || '').toLowerCase();
       const code = (syllabus.code || '').toLowerCase();
-      return [...relatedSubjects].some((value) => subject.includes(value) || value.includes(subject) || code.includes(value));
+      return (
+        [...relatedCodes].some((value) => value === code)
+        || [...relatedSubjects].some((value) => subject.includes(value) || value.includes(subject) || code.includes(value))
+      );
     });
   }, [selectedStudent, selectedStudentSchedules, syllabi]);
 
@@ -856,7 +1127,7 @@ export function StudentRecords({ navigationIntent, clearNavigationIntent, onNavi
 
   const resetFilters = () => {
     setSearchTerm('');
-    setFilterCourse('');
+    setFilterCourse(isChairUser ? chairDepartment : '');
     setFilterYearLevel('');
     setSkillQuery('');
     setActivityQuery('');
@@ -867,7 +1138,7 @@ export function StudentRecords({ navigationIntent, clearNavigationIntent, onNavi
     const rows = [];
     let skippedCount = 0;
 
-    students.forEach((student) => {
+    scopedStudents.forEach((student) => {
       const isValid = STUDENT_REQUIRED_KEYS.every((requiredKey) => sanitizeValue(student[requiredKey]));
       if (!isValid) {
         skippedCount += 1;
@@ -890,7 +1161,7 @@ export function StudentRecords({ navigationIntent, clearNavigationIntent, onNavi
     }
     showError(
       'No rows exported',
-      'Every row is missing at least one required field (Student ID, First Name, Last Name, Course, Year Level).',
+      'Every row is missing at least one required field (Student ID, First Name, Last Name, Birthday, Course, Year Level).',
     );
     return false;
   };
@@ -1021,7 +1292,7 @@ export function StudentRecords({ navigationIntent, clearNavigationIntent, onNavi
     );
     if (!hasRequiredData && headerScore < 2) {
       throw new Error(
-        'Could not detect student columns. Check headers like Student ID, First Name, Last Name, Course, Year Level.',
+        'Could not detect student columns. Check headers like Student ID, First Name, Last Name, Birthday, Course, Year Level.',
       );
     }
     return payloads;
@@ -1058,6 +1329,14 @@ export function StudentRecords({ navigationIntent, clearNavigationIntent, onNavi
   };
 
   const handleChooseImportType = (typeKey) => {
+    if (isFacultyUser) {
+      showError('Action not allowed', 'Faculty accounts cannot import student profiles.');
+      return;
+    }
+    if (isChairUser && !chairDepartment) {
+      showError('Access restricted', 'Your chair account is not linked to any department yet.');
+      return;
+    }
     if (isProcessingFile) return;
     pendingImportTypeRef.current = typeKey;
     setPendingImportType(typeKey);
@@ -1074,6 +1353,12 @@ export function StudentRecords({ navigationIntent, clearNavigationIntent, onNavi
   const handleImportFileChange = async (event) => {
     const selectedFile = event.target.files?.[0];
     if (!selectedFile) return;
+
+    if (isChairUser && !chairDepartment) {
+      event.target.value = '';
+      showError('Access restricted', 'Your chair account is not linked to any department yet.');
+      return;
+    }
 
     const importType = pendingImportTypeRef.current;
     setImportingFormat(importType);
@@ -1094,19 +1379,24 @@ export function StudentRecords({ navigationIntent, clearNavigationIntent, onNavi
 
       const validPayloads = [];
       let skippedRequired = 0;
+      let skippedDepartment = 0;
       payloads.forEach((payload) => {
         const hasRequired = STUDENT_REQUIRED_KEYS.every((requiredKey) => sanitizeValue(payload[requiredKey]));
         if (!hasRequired) {
           skippedRequired += 1;
           return;
         }
-        validPayloads.push(payload);
+        if (isChairUser && chairDepartment && !sameCourse(payload.course, chairDepartment)) {
+          skippedDepartment += 1;
+          return;
+        }
+        validPayloads.push({ ...payload, section: '' });
       });
 
       if (validPayloads.length === 0) {
         showError(
           'Import failed',
-          'All detected rows are missing required fields (Student ID, First Name, Last Name, Course, Year Level).',
+          'All detected rows are missing required fields (Student ID, First Name, Last Name, Birthday, Course, Year Level).',
         );
         return;
       }
@@ -1130,6 +1420,7 @@ export function StudentRecords({ navigationIntent, clearNavigationIntent, onNavi
       if (createdCount > 0) {
         const parts = [`${createdCount} row(s) imported`];
         if (skippedRequired > 0) parts.push(`${skippedRequired} row(s) skipped for missing required fields`);
+        if (skippedDepartment > 0) parts.push(`${skippedDepartment} row(s) skipped outside ${chairDepartment}`);
         if (failedCount > 0) parts.push(`${failedCount} row(s) failed to save`);
         showSuccess('Import completed', `${parts.join(', ')}.`);
       } else {
@@ -1145,10 +1436,22 @@ export function StudentRecords({ navigationIntent, clearNavigationIntent, onNavi
 
   const handleSelectStudent = async (studentId) => {
     await fetchStudentDetails(studentId);
+    navigate('/users/' + studentId);
   };
 
   const openAddStudentModal = () => {
-    setFormData(defaultStudentForm);
+    if (isFacultyUser) {
+      showError('Action not allowed', 'Faculty accounts cannot add student profiles.');
+      return;
+    }
+    if (isChairUser && !chairDepartment) {
+      showError('Access restricted', 'Your chair account is not linked to any department yet.');
+      return;
+    }
+    setFormData({
+      ...defaultStudentForm,
+      course: isChairUser && chairDepartment ? chairDepartment : defaultStudentForm.course,
+    });
     setShowAddModal(true);
   };
 
@@ -1158,27 +1461,45 @@ export function StudentRecords({ navigationIntent, clearNavigationIntent, onNavi
       first_name: student.first_name || '',
       last_name: student.last_name || '',
       middle_name: student.middle_name || '',
+      birthday: student.birthday ? String(student.birthday).split('T')[0] : '',
       email: student.email || '',
       contact_number: student.contact_number || '',
-      course: student.course || 'BSIT',
+      course: isChairUser && chairDepartment ? chairDepartment : (student.course || 'BSIT'),
       year_level: student.year_level || '1st Year',
-      enrollment_status: student.enrollment_status || 'Enrolled',
+      semester: student.semester || '1st Semester',
+      section: student.section || '',
     });
     setShowEditModal(true);
   };
 
   const handleAddStudent = async (event) => {
     event.preventDefault();
+    if (isFacultyUser) {
+      showError('Action not allowed', 'Faculty accounts cannot add student profiles.');
+      return;
+    }
+    if (isChairUser && !chairDepartment) {
+      showError('Access restricted', 'Your chair account is not linked to any department yet.');
+      return;
+    }
     try {
+      const payload = buildStudentPayload(formData);
+      if (isChairUser && chairDepartment) {
+        payload.course = chairDepartment;
+      }
       const response = await apiRequest('/api/students', {
         method: 'POST',
-        body: buildStudentPayload(formData),
+        body: payload,
       });
       setShowAddModal(false);
       setFormData(defaultStudentForm);
       await refreshCurrentView();
       await fetchStudentDetails(response.data.id);
-      showSuccess('Student profile added', 'The new student is now part of the searchable list.');
+      navigate('/users/' + response.data.id);
+      const credentialsHint = response.account
+        ? `Account ID: ${response.account.email} | Default password: ${response.account.password}`
+        : 'The new student is now part of the searchable list.';
+      showSuccess('Student profile added', credentialsHint);
     } catch (error) {
       showError('Unable to add student', error.message);
     }
@@ -1189,11 +1510,19 @@ export function StudentRecords({ navigationIntent, clearNavigationIntent, onNavi
     if (!selectedStudent?.id) {
       return;
     }
+    if (isChairUser && !chairDepartment) {
+      showError('Access restricted', 'Your chair account is not linked to any department yet.');
+      return;
+    }
 
     try {
+      const payload = buildStudentPayload(formData);
+      if (isChairUser && chairDepartment) {
+        payload.course = chairDepartment;
+      }
       await apiRequest(`/api/students/${selectedStudent.id}`, {
         method: 'PUT',
-        body: buildStudentPayload(formData),
+        body: payload,
       });
       setShowEditModal(false);
       await refreshCurrentView();
@@ -1798,14 +2127,28 @@ export function StudentRecords({ navigationIntent, clearNavigationIntent, onNavi
             <div>
               <h3 className="text-xl font-bold text-slate-900">Student Profiles</h3>
               <p className="mt-1 text-sm text-slate-500">
-                Search, filter, and manage the complete student record in one place.
+                {isFacultyUser
+                  ? 'Search and filter students from sections assigned to your schedules.'
+                  : isChairUser
+                    ? `Search and manage student records under ${chairDepartment || 'your assigned'} department only.`
+                    : 'Search, filter, and manage the complete student record in one place.'}
               </p>
+              {isFacultyUser && !facultyProfile ? (
+                <p className="mt-2 text-xs font-semibold text-amber-700">
+                  Your faculty account is not linked to a faculty profile. No student records are shown.
+                </p>
+              ) : null}
+              {isChairUser && !chairDepartment ? (
+                <p className="mt-2 text-xs font-semibold text-amber-700">
+                  Your chair account is not linked to a faculty profile with a department yet. No student records are shown.
+                </p>
+              ) : null}
             </div>
 
             <div className="flex flex-wrap gap-3 text-sm">
               <div className="rounded-2xl bg-slate-50 px-4 py-3">
                 <p className="text-xs font-bold uppercase tracking-[0.18em] text-slate-400">Results</p>
-                <p className="mt-1 text-lg font-bold text-slate-900">{students.length}</p>
+                <p className="mt-1 text-lg font-bold text-slate-900">{scopedStudents.length}</p>
               </div>
               <div className="rounded-2xl bg-orange-50 px-4 py-3">
                 <p className="text-xs font-bold uppercase tracking-[0.18em] text-orange-400">Query Ready</p>
@@ -1821,35 +2164,37 @@ export function StudentRecords({ navigationIntent, clearNavigationIntent, onNavi
           </div>
 
           <div ref={actionMenuRef} className="flex flex-wrap items-center gap-2">
-            <div className="relative">
-              <button
-                type="button"
-                onClick={() => setOpenActionMenu(openActionMenu === 'import' ? '' : 'import')}
-                disabled={isProcessingFile}
-                className="inline-flex items-center justify-center gap-2 rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm font-bold text-slate-700 transition-colors hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60"
-              >
-                <Upload size={16} />
-                {importingFormat ? `Importing ${importingFormat}...` : 'Import'}
-              </button>
-              {openActionMenu === 'import' ? (
-                <div className="absolute right-0 z-20 mt-2 w-44 rounded-xl border border-gray-200 bg-white p-1 shadow-lg">
-                  {FILE_TYPE_OPTIONS.map((option) => {
-                    const Icon = option.icon;
-                    return (
-                      <button
-                        key={`import-${option.key}`}
-                        type="button"
-                        onClick={() => handleChooseImportType(option.key)}
-                        className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm font-medium text-gray-700 hover:bg-gray-50"
-                      >
-                        <Icon size={15} />
-                        {option.label}
-                      </button>
-                    );
-                  })}
-                </div>
-              ) : null}
-            </div>
+            {!isFacultyUser ? (
+              <div className="relative">
+                <button
+                  type="button"
+                  onClick={() => setOpenActionMenu(openActionMenu === 'import' ? '' : 'import')}
+                  disabled={isProcessingFile}
+                  className="inline-flex items-center justify-center gap-2 rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm font-bold text-slate-700 transition-colors hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60"
+                >
+                  <Upload size={16} />
+                  {importingFormat ? `Importing ${importingFormat}...` : 'Import'}
+                </button>
+                {openActionMenu === 'import' ? (
+                  <div className="absolute right-0 z-20 mt-2 w-44 rounded-xl border border-gray-200 bg-white p-1 shadow-lg">
+                    {FILE_TYPE_OPTIONS.map((option) => {
+                      const Icon = option.icon;
+                      return (
+                        <button
+                          key={`import-${option.key}`}
+                          type="button"
+                          onClick={() => handleChooseImportType(option.key)}
+                          className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm font-medium text-gray-700 hover:bg-gray-50"
+                        >
+                          <Icon size={15} />
+                          {option.label}
+                        </button>
+                      );
+                    })}
+                  </div>
+                ) : null}
+              </div>
+            ) : null}
 
             <div className="relative">
               <button
@@ -1881,48 +2226,59 @@ export function StudentRecords({ navigationIntent, clearNavigationIntent, onNavi
               ) : null}
             </div>
 
-            <input
-              ref={fileInputRef}
-              type="file"
-              accept={importAccept}
-              onChange={handleImportFileChange}
-              className="hidden"
-            />
+            {!isFacultyUser ? (
+              <>
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  accept={importAccept}
+                  onChange={handleImportFileChange}
+                  className="hidden"
+                />
 
-            <button
-              type="button"
-              onClick={openAddStudentModal}
-              className="inline-flex items-center justify-center gap-2 rounded-2xl bg-orange-600 px-5 py-3 text-sm font-bold text-white transition-colors hover:bg-orange-700"
-            >
-              <Plus size={18} />
-              Add Student
-            </button>
+                <button
+                  type="button"
+                  onClick={openAddStudentModal}
+                  className="inline-flex items-center justify-center gap-2 rounded-2xl bg-orange-600 px-5 py-3 text-sm font-bold text-white transition-colors hover:bg-orange-700"
+                >
+                  <Plus size={18} />
+                  Add Student
+                </button>
+              </>
+            ) : null}
           </div>
         </div>
 
         <div className="mt-6 grid gap-3 md:grid-cols-2 xl:grid-cols-3">
-          <label className="relative block xl:col-span-1">
-            <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
-            <input
-              type="text"
-              placeholder="Search name, student ID, or email..."
-              className="w-full rounded-2xl border border-slate-200 bg-slate-50 py-3 pl-11 pr-4 text-sm outline-none transition focus:border-orange-200 focus:bg-white focus:ring-2 focus:ring-orange-200"
-              value={searchTerm}
-              onChange={(event) => setSearchTerm(event.target.value)}
-            />
-          </label>
+          <StudentSearchBar value={searchTerm} onChange={setSearchTerm} />
 
           <select
-            className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm font-medium outline-none transition focus:border-orange-200 focus:bg-white focus:ring-2 focus:ring-orange-200"
-            value={filterCourse}
-            onChange={(event) => setFilterCourse(event.target.value)}
+            className={cn(
+              'rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm font-medium outline-none transition focus:border-orange-200 focus:bg-white focus:ring-2 focus:ring-orange-200',
+              isChairUser ? 'cursor-not-allowed bg-slate-100 text-slate-500' : '',
+            )}
+            value={isChairUser ? chairDepartment : filterCourse}
+            onChange={(event) => {
+              if (!isChairUser) {
+                setFilterCourse(event.target.value);
+              }
+            }}
+            disabled={isChairUser}
           >
-            <option value="">All Courses</option>
-            {CORE_COURSES.map((course) => (
-              <option key={course} value={course}>
-                {course}
+            {isChairUser ? (
+              <option value={chairDepartment || ''}>
+                {chairDepartment || 'No department linked'}
               </option>
-            ))}
+            ) : (
+              <>
+                <option value="">All Courses</option>
+                {CORE_COURSES.map((course) => (
+                  <option key={course} value={course}>
+                    {course}
+                  </option>
+                ))}
+              </>
+            )}
           </select>
 
           <select
@@ -2024,7 +2380,7 @@ export function StudentRecords({ navigationIntent, clearNavigationIntent, onNavi
         <div className="overflow-x-auto">
           {loading ? (
             <div className="p-12 text-center text-sm text-slate-500">Loading student profiles...</div>
-          ) : students.length === 0 ? (
+          ) : scopedStudents.length === 0 ? (
             <div className="p-12 text-center">
               <p className="text-base font-semibold text-slate-700">No student profiles found.</p>
               <p className="mt-2 text-sm text-slate-500">Try adjusting the filters or add a new student profile.</p>
@@ -2036,71 +2392,22 @@ export function StudentRecords({ navigationIntent, clearNavigationIntent, onNavi
                   <th className="px-6 py-4 text-left text-[11px] font-bold uppercase tracking-[0.2em] text-slate-400">Student</th>
                   <th className="px-6 py-4 text-left text-[11px] font-bold uppercase tracking-[0.2em] text-slate-400">Student ID</th>
                   <th className="px-6 py-4 text-left text-[11px] font-bold uppercase tracking-[0.2em] text-slate-400">Course</th>
-                  <th className="px-6 py-4 text-left text-[11px] font-bold uppercase tracking-[0.2em] text-slate-400">Year</th>
+                  <th className="px-6 py-4 text-left text-[11px] font-bold uppercase tracking-[0.2em] text-slate-400">Year / Section</th>
                   <th className="px-6 py-4 text-left text-[11px] font-bold uppercase tracking-[0.2em] text-slate-400">Highlights</th>
                   <th className="px-6 py-4 text-right text-[11px] font-bold uppercase tracking-[0.2em] text-slate-400">Actions</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
                 {students.map((student) => (
-                  <tr key={student.id} className="transition-colors hover:bg-orange-50/40">
-                    <td className="px-6 py-4">
-                      <div className="flex items-center gap-3">
-                        <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-gradient-to-br from-orange-100 via-amber-50 to-orange-50 text-sm font-bold text-orange-700">
-                          {getInitials(student.first_name, student.last_name)}
-                        </div>
-                        <div>
-                          <p className="text-sm font-bold text-slate-900">
-                            {student.last_name}, {student.first_name} {student.middle_name ? `${student.middle_name[0]}.` : ''}
-                          </p>
-                          <p className="text-xs text-slate-500">{student.email || 'No email on file'}</p>
-                        </div>
-                      </div>
-                    </td>
-                    <td className="px-6 py-4 text-sm font-medium text-slate-600">{student.student_id}</td>
-                    <td className="px-6 py-4 text-sm text-slate-600">{student.course}</td>
-                    <td className="px-6 py-4 text-sm text-slate-600">{student.year_level}</td>
-                    <td className="px-6 py-4">
-                      <div className="flex flex-wrap gap-2">
-                        {(student.skills || []).slice(0, 2).map((skill) => (
-                          <span key={skill.id} className="rounded-full bg-emerald-50 px-2.5 py-1 text-[11px] font-bold text-emerald-700">
-                            {skill.skill_name}
-                          </span>
-                        ))}
-                        {(student.affiliations || []).slice(0, 1).map((affiliation) => (
-                          <span key={affiliation.id} className="rounded-full bg-sky-50 px-2.5 py-1 text-[11px] font-bold text-sky-700">
-                            {affiliation.name}
-                          </span>
-                        ))}
-                        {(student.skills || []).length === 0 && (student.affiliations || []).length === 0 ? (
-                          <span className="text-xs text-slate-400">No enrichment data yet</span>
-                        ) : null}
-                      </div>
-                    </td>
-                    <td className="px-6 py-4">
-                      <div className="flex justify-end gap-2">
-                        <button
-                          type="button"
-                          onClick={() => handleSelectStudent(student.id)}
-                          className="inline-flex items-center gap-2 rounded-2xl border border-slate-200 px-3 py-2 text-xs font-bold text-slate-600 transition-colors hover:border-orange-200 hover:bg-orange-50 hover:text-orange-700"
-                        >
-                          <Eye size={14} />
-                          View
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setSelectedStudent(student);
-                            openEditStudentModal(student);
-                          }}
-                          className="inline-flex items-center gap-2 rounded-2xl border border-slate-200 px-3 py-2 text-xs font-bold text-slate-600 transition-colors hover:border-slate-300 hover:bg-slate-50"
-                        >
-                          <Edit3 size={14} />
-                          Edit
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
+                  <StudentListRow
+                    key={student.id}
+                    student={student}
+                    onView={handleSelectStudent}
+                    onEdit={(nextStudent) => {
+                      setSelectedStudent(nextStudent);
+                      openEditStudentModal(nextStudent);
+                    }}
+                  />
                 ))}
               </tbody>
             </table>
@@ -2110,7 +2417,10 @@ export function StudentRecords({ navigationIntent, clearNavigationIntent, onNavi
 
       {selectedStudent && !showEditModal ? (
         <ModalShell
-          onClose={() => setSelectedStudent(null)}
+          onClose={() => {
+            setSelectedStudent(null);
+            navigate('/users');
+          }}
           title="Student Profile"
           description="Comprehensive student information with linked schedules, instructions, activities, and event participation."
           size="max-w-7xl"
@@ -2129,9 +2439,10 @@ export function StudentRecords({ navigationIntent, clearNavigationIntent, onNavi
                       </h2>
                       <span className="rounded-full bg-orange-100 px-3 py-1 text-xs font-bold text-orange-700">
                         {selectedStudent.course} - {selectedStudent.student_id}
+                        {selectedStudent.section ? ` - ${selectedStudent.section}` : ''}
                       </span>
                     </div>
-                    <div className="mt-3 grid gap-3 text-sm text-slate-600 md:grid-cols-3">
+                    <div className="mt-3 grid gap-3 text-sm text-slate-600 md:grid-cols-4">
                       <div className="flex items-center gap-2">
                         <Mail size={14} className="text-slate-400" />
                         <span>{selectedStudent.email || 'No email on file'}</span>
@@ -2142,7 +2453,11 @@ export function StudentRecords({ navigationIntent, clearNavigationIntent, onNavi
                       </div>
                       <div className="flex items-center gap-2">
                         <GraduationCap size={14} className="text-slate-400" />
-                        <span>{selectedStudent.enrollment_status}</span>
+                        <span>{selectedStudent.year_level || 'Year level not set'}</span>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <GraduationCap size={14} className="text-slate-400" />
+                        <span>{selectedStudent.semester || 'Semester not set'}</span>
                       </div>
                     </div>
                   </div>
@@ -2202,7 +2517,7 @@ export function StudentRecords({ navigationIntent, clearNavigationIntent, onNavi
                             <div className="flex items-start justify-between gap-3">
                               <div>
                                 <p className="text-sm font-bold text-slate-900">
-                                  {record.course || selectedStudent.course} • {record.academic_year || 'Academic year not set'}
+                                  {record.course || selectedStudent.course} â€¢ {record.academic_year || 'Academic year not set'}
                                 </p>
                                 <p className="mt-1 text-sm text-slate-600">
                                   {details?.school_name || 'School not specified'}
@@ -2320,7 +2635,7 @@ export function StudentRecords({ navigationIntent, clearNavigationIntent, onNavi
               </div>
 
               <div className="space-y-6">
-                <DetailSectionCard title="Assigned Schedule" subtitle="Schedules are matched by course and year level for faster advising.">
+                <DetailSectionCard title="Assigned Schedule" subtitle="Schedules are matched by course, year level, semester, and section for faster advising.">
                   {selectedStudentSchedules.length > 0 ? (
                     <div className="space-y-3">
                       {selectedStudentSchedules.map((schedule) => (
@@ -2331,15 +2646,18 @@ export function StudentRecords({ navigationIntent, clearNavigationIntent, onNavi
                           className="w-full rounded-3xl border border-slate-200 bg-slate-50 p-4 text-left transition-colors hover:border-orange-200 hover:bg-orange-50"
                         >
                           <p className="text-sm font-bold text-slate-900">{schedule.subject}</p>
-                          <p className="mt-1 text-sm text-slate-500">{schedule.day} • {schedule.time}</p>
+                          <p className="mt-1 text-sm text-slate-500">{schedule.day} â€¢ {schedule.time}</p>
                           <p className="mt-2 text-xs font-semibold uppercase tracking-[0.16em] text-slate-400">
-                            {schedule.instructor} • {schedule.room}
+                            {schedule.semester} â€¢ {schedule.room}
+                          </p>
+                          <p className="mt-2 text-xs text-slate-500">
+                            {schedule.instructor && schedule.instructor !== 'Unassigned' ? schedule.instructor : 'Professor not assigned yet'}
                           </p>
                         </button>
                       ))}
                     </div>
                   ) : (
-                    <p className="text-sm text-slate-500">No schedule currently matches this student’s course and year level.</p>
+                    <p className="text-sm text-slate-500">No schedule currently matches this studentâ€™s course, year level, semester, and section.</p>
                   )}
                 </DetailSectionCard>
 
@@ -2352,7 +2670,7 @@ export function StudentRecords({ navigationIntent, clearNavigationIntent, onNavi
                       </p>
                       <p className="mt-1 text-sm text-slate-500">
                         {selectedStudentCurriculum
-                          ? `${selectedStudentCurriculum.totalUnits} total units • ${selectedStudentCurriculum.year}`
+                          ? `${selectedStudentCurriculum.totalUnits} total units â€¢ ${selectedStudentCurriculum.year}`
                           : 'Add or align curriculum data for this course to show the full program path.'}
                       </p>
                     </div>
@@ -2372,8 +2690,8 @@ export function StudentRecords({ navigationIntent, clearNavigationIntent, onNavi
                             onClick={() => onNavigate?.('instructions', { type: 'syllabus', syllabusId: syllabus.id, course: selectedStudent.course })}
                             className="w-full rounded-2xl bg-white px-3 py-3 text-left transition-colors hover:bg-orange-50"
                           >
-                            <p className="text-sm font-bold text-slate-900">{syllabus.code} • {syllabus.subject}</p>
-                            <p className="mt-1 text-xs text-slate-500">{syllabus.semester} • {syllabus.instructor}</p>
+                            <p className="text-sm font-bold text-slate-900">{syllabus.code} â€¢ {syllabus.subject}</p>
+                            <p className="mt-1 text-xs text-slate-500">{syllabus.semester} â€¢ {syllabus.instructor}</p>
                           </button>
                         ))}
                         {selectedStudentSyllabi.length === 0 ? (
@@ -2386,13 +2704,13 @@ export function StudentRecords({ navigationIntent, clearNavigationIntent, onNavi
                       <p className="text-xs font-bold uppercase tracking-[0.16em] text-slate-400">Lesson plans</p>
                       <p className="mt-2 text-sm font-bold text-slate-900">{selectedStudentLessons.length} lesson(s) connected</p>
                       <p className="mt-1 text-sm text-slate-500">
-                        Lessons are matched from the linked syllabus set for this student’s current course flow.
+                        Lessons are matched from the linked syllabus set for this studentâ€™s current course flow.
                       </p>
                     </div>
                   </div>
                 </DetailSectionCard>
 
-                <DetailSectionCard title="Affiliated Events" subtitle="Events are suggested from the student’s organization affiliations.">
+                <DetailSectionCard title="Affiliated Events" subtitle="Events are suggested from the studentâ€™s organization affiliations.">
                   {selectedStudentEvents.length > 0 ? (
                     <div className="space-y-3">
                       {selectedStudentEvents.map((eventRecord) => (
@@ -2484,6 +2802,9 @@ export function StudentRecords({ navigationIntent, clearNavigationIntent, onNavi
           onCancel={() => setShowAddModal(false)}
           formData={formData}
           setFormData={setFormData}
+          lockedCourse={isChairUser ? chairDepartment : ''}
+          sectionOptions={sectionOptions}
+          sectionLoading={sectionLoading}
         />
       ) : null}
 
@@ -2495,8 +2816,16 @@ export function StudentRecords({ navigationIntent, clearNavigationIntent, onNavi
           onCancel={() => setShowEditModal(false)}
           formData={formData}
           setFormData={setFormData}
+          lockedCourse={isChairUser ? chairDepartment : ''}
+          sectionOptions={sectionOptions}
+          sectionLoading={sectionLoading}
         />
       ) : null}
     </div>
   );
 }
+
+
+
+
+
